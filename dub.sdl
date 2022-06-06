@@ -17,12 +17,13 @@ subPackage {
     excludedSourceFiles "source/oceandrift/db/mariadb.d" "source/oceandrift/db/orm.d"
 }
 
-dependency ":dbal-mariadb" version="*"
+dependency ":mariadb" version="*"
 subPackage {
-    name "dbal-mariadb"
+    name "mariadb"
     description "MariaDB driver for the oceandrift-database DBAL"
     targetPath "bin"
     excludedSourceFiles "source/oceandrift/db/dbal.d" "source/oceandrift/db/orm.d"
+    dependency "oceandrift-database:dbal" version="*"
     dependency "mysql-native" version="~>3.2.0"
 }
 
