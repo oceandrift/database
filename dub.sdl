@@ -1,0 +1,35 @@
+name "oceandrift-database"
+description "ORM & Database Abstraction Layer"
+
+copyright "Copyright © 2022  Elias Batek"
+license "BSL-1.0"
+
+authors "Elias Batek (0xEAB)"
+
+targetType "none"
+
+dependency ":dbal" version="*"
+subPackage {
+    name "dbal"
+    description "DataBase Abstraction Layer"
+    targetPath "bin"
+    // DCD does not properly support “sourceFiles”
+    excludedSourceFiles "source/oceandrift/db/mariadb.d" "source/oceandrift/db/orm.d"
+}
+
+dependency ":dbal-mariadb" version="*"
+subPackage {
+    name "dbal-mariadb"
+    description "MariaDB driver for the oceandrift-database DBAL"
+    targetPath "bin"
+    excludedSourceFiles "source/oceandrift/db/dbal.d" "source/oceandrift/db/orm.d"
+    dependency "mysql-native" version="~>3.2.0"
+}
+
+dependency ":orm" version="*"
+subPackage {
+    name "orm"
+    description "Object-Relation Mapper"
+    targetPath "bin"
+    excludedSourceFiles "source/oceandrift/db/dbal.d" "source/oceandrift/db/mariadb.d"
+}

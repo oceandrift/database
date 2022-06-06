@@ -1,0 +1,8 @@
+# DUB
+.dub/
+dub.selections.json
+
+# build
+/bin/
+/docs/
+__dummy.html
