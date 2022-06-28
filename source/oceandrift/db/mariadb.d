@@ -1,9 +1,9 @@
 module oceandrift.db.maridb;
 
 import mysql.safe;
-import oceandrift.db.dbal;
+import oceandrift.db.dbal.driver;
 
-class MariaDBDatabaseDriver : oceandrift.db.dbal.DatabaseDriver
+class MariaDBDatabaseDriver : DatabaseDriver
 {
 @safe:
 
@@ -20,29 +20,29 @@ class MariaDBDatabaseDriver : oceandrift.db.dbal.DatabaseDriver
 
     public this(string host, ushort port, string username, string password, string database)
     {
-        this._host = host;
-        this._port = port;
-        this._username = username;
-        this._password = password;
-        this._database = database;
+        _host = host;
+        _port = port;
+        _username = username;
+        _password = password;
+        _database = database;
     }
 
-    public  // DatabaseDriver
+    public  // MinimalDatabaseDriver
     {
         void connect()
         {
-            this._connection = new Connection(
-                this._host,
-                this._username,
-                this._password,
-                this._database,
-                this._port
+            _connection = new Connection(
+                _host,
+                _username,
+                _password,
+                _database,
+                _port
             );
         }
 
         void close()
         {
-            this._connection.close();
+            _connection.close();
         }
 
         bool connected()
@@ -50,7 +50,10 @@ class MariaDBDatabaseDriver : oceandrift.db.dbal.DatabaseDriver
             return ((this._connection !is null)
                     && !this._connection.closed);
         }
+    }
 
+    public
+    {
         bool autoCommit()
         {
             return this._connection
@@ -61,25 +64,29 @@ class MariaDBDatabaseDriver : oceandrift.db.dbal.DatabaseDriver
         void autoCommit(bool enable)
         {
             if (enable)
-                this._connection.exec("SET autocommit=1");
+                _connection.exec("SET autocommit=1");
             else
-                this._connection.exec("SET autocommit=0");
+                _connection.exec("SET autocommit=0");
         }
 
         void transactionStart()
         {
-            this._connection.exec("START TRANSACTION");
+            _connection.exec("START TRANSACTION");
         }
 
         void transactionCommit()
         {
-            this._connection.exec("COMMIT");
+            _connection.exec("COMMIT");
         }
 
         void transactionRollback()
         {
-            this._connection.exec("ROLLBACK");
+            _connection.exec("ROLLBACK");
         }
+    }
+
+    public  // ORMDatabaseDriver
+    {
     }
 
     public  // Extras
