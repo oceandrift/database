@@ -3,6 +3,6 @@
 dub.selections.json
 
 # build
-/bin/
+bin/
 /docs/
 __dummy.html

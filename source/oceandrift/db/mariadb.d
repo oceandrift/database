@@ -3,6 +3,8 @@ module oceandrift.db.maridb;
 import mysql.safe;
 import oceandrift.db.dbal.driver;
 
+@safe:
+
 class MariaDBDatabaseDriver : DatabaseDriver
 {
 @safe:
