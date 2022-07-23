@@ -1,0 +1,9 @@
+{
+	"name": "oceandrift-database-dbal-tests",
+    "sourceFiles": [ "tests.d" ],
+    "importPaths": [ "." ],
+    "targetPath": "bin",
+    "dependencies": {
+        "oceandrift-database:sqlite3": { "path": "../../" }
+    }
+}
