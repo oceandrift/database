@@ -1,6 +1,7 @@
 module oceandrift.db.dbal.driver;
 
-import taggedalgebraic.taggedalgebraic;
+import taggedalgebraic : TaggedAlgebraic;
+public import std.datetime : Date, DateTime, TimeOfDay;
 
 @safe:
 
@@ -28,6 +29,8 @@ interface Statement
     void close();
 
     void bind(int index, bool value);
+    void bind(int index, byte value);
+    void bind(int index, ubyte value);
     void bind(int index, short value);
     void bind(int index, ushort value);
     void bind(int index, int value);
@@ -35,8 +38,11 @@ interface Statement
     void bind(int index, long value);
     void bind(int index, ulong value);
     void bind(int index, double value);
-    void bind(int index, ubyte[] value);
+    void bind(int index, const(ubyte)[] value);
     void bind(int index, string value);
+    void bind(int index, DateTime value);
+    void bind(int index, TimeOfDay value);
+    void bind(int index, Date value);
     void bind(int index, typeof(null));
 
     void execute();
@@ -46,16 +52,28 @@ interface Statement
     Row front();
 }
 
-unittest
+/// helper
+void executeWith(Args...)(Statement stmt, Args bindValues)
 {
-    import std.range : isInputRange;
+    int idx = 1;
+    foreach (val; bindValues)
+    {
+        stmt.bind(idx, val);
+        ++idx;
+    }
 
-    static assert(isInputRange!SQLite3Statement);
+    stmt.execute();
 }
+
+import std.range : isInputRange;
+
+static assert(isInputRange!Statement);
 
 private union _DBValue
 {
     bool bool_;
+    byte byte_;
+    ubyte ubyte_;
     short short_;
     ushort ushort_;
     int int_;
@@ -63,13 +81,17 @@ private union _DBValue
     long long_;
     ulong ulong_;
     double double_;
-    ubyte[] ubytes_;
+    const(ubyte)[] ubytes_;
     string string_;
+    DateTime dateTime_;
+    TimeOfDay timeOfDay_;
+    Date date_;
     typeof(null) null_;
 }
 
 ///
 alias DBValue = TaggedAlgebraic!_DBValue;
+public import taggedalgebraic : get;
 
 ///
 struct Row
