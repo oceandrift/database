@@ -1,0 +1,9 @@
+{
+	"name": "oceandrift-database-dbal_mariadb-tests",
+    "sourceFiles": [ "tests.d" ],
+    "importPaths": [ "." ],
+    "targetPath": "bin",
+    "dependencies": {
+        "oceandrift-database:mariadb": { "path": "../../" }
+    }
+}
