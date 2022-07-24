@@ -4,9 +4,17 @@ import oceandrift.db.dbal.driver;
 
 import etc.c.sqlite3;
 import std.string : fromStringz, toStringz;
+import std.format : format;
 import oceandrift.db.dbal.driver;
 
 @safe:
+
+private enum
+{
+    formatDate = "%04d-%02u-%02u",
+    formatTime = "%02u:%02u:%02u",
+    formatDateTime = formatDate ~ ' ' ~ formatTime,
+}
 
 private void enforce(
     const int actual,
@@ -294,16 +302,6 @@ final class SQLite3Statement : Statement
             _stmtHandle.sqlite3_finalize();
             _stmtHandle = null;
         }
-
-        bool fetch(out Row row) @safe
-        {
-            return false;
-        }
-
-        int debugStatus()
-        {
-            return _status;
-        }
     }
 
     public
@@ -317,12 +315,14 @@ final class SQLite3Statement : Statement
         {
             _status = _stmtHandle.sqlite3_step();
 
-            if (_status != SQLITE_ROW && _status != SQLITE_DONE)
+            if ((_status != SQLITE_ROW) && (_status != SQLITE_DONE))
+            {
                 enforce(
                     _status,
                     cast(immutable) _dbHandle.sqlite3_errmsg.fromStringz,
                     ResultCode.row,
                 );
+            }
 
             this.populateRow();
 
@@ -337,6 +337,16 @@ final class SQLite3Statement : Statement
     public
     {
         void bind(int index, bool value)
+        {
+            return this.bind(index, int(value));
+        }
+
+        void bind(int index, byte value)
+        {
+            return this.bind(index, int(value));
+        }
+
+        void bind(int index, ubyte value)
         {
             return this.bind(index, int(value));
         }
@@ -386,7 +396,7 @@ final class SQLite3Statement : Statement
             enforce(x, "Parameter binding failed");
         }
 
-        void bind(int index, ubyte[] value) @trusted
+        void bind(int index, const(ubyte)[] value) @trusted
         {
             this.resetIfNeeded();
 
@@ -402,10 +412,35 @@ final class SQLite3Statement : Statement
             enforce(x, "Parameter binding failed");
         }
 
+        void bind(int index, DateTime value)
+        {
+            return this.bind(
+                index,
+                format!formatDateTime(
+                    value.year, value.month, value.day,
+                    value.hour, value.minute, value.second),
+            );
+        }
+
+        void bind(int index, TimeOfDay value)
+        {
+            return this.bind(
+                index,
+                format!formatTime(value.hour, value.minute, value.second)
+            );
+        }
+
+        void bind(int index, Date value)
+        {
+            return this.bind(
+                index,
+                format!formatDate(value.year, value.month, value.day)
+            );
+        }
+
         void bind(int index, typeof(null)) @trusted
         {
             this.resetIfNeeded();
-
             immutable x = _stmtHandle.sqlite3_bind_null(index);
             enforce(x, "Parameter binding failed");
         }
@@ -427,6 +462,7 @@ final class SQLite3Statement : Statement
         {
             int cntColumns = _stmtHandle.sqlite3_column_count;
             auto rowData = new DBValue[](cntColumns);
+
             foreach (n; 0 .. cntColumns)
             {
                 int colType = _stmtHandle.sqlite3_column_type(n);
@@ -435,22 +471,26 @@ final class SQLite3Statement : Statement
                 case SQLITE_INTEGER:
                     rowData[n] = DBValue(_stmtHandle.sqlite3_column_int64(n));
                     break;
+
                 case SQLITE_FLOAT:
                     rowData[n] = DBValue(_stmtHandle.sqlite3_column_double(n));
                     break;
+
                 case SQLITE3_TEXT:
                     const sqliteText = _stmtHandle.sqlite3_column_text(n);
                     auto textSlice = sqliteText.fromStringz;
                     string textString = textSlice.idup;
                     rowData[n] = DBValue(textString);
                     break;
+
                 case SQLITE_BLOB:
                     immutable cntBytes = _stmtHandle.sqlite3_column_bytes(n);
                     const blob = _stmtHandle.sqlite3_column_blob(n);
                     const blobBytes = cast(ubyte[]) blob[0 .. cntBytes];
-                    ubyte[] blobArray = blobBytes.dup;
+                    const(ubyte)[] blobArray = blobBytes.idup;
                     rowData[n] = DBValue(blobArray);
                     break;
+
                 case SQLITE_NULL:
                     rowData[n] = DBValue(null);
                     break;

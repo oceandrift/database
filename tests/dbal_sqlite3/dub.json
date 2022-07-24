@@ -1,5 +1,5 @@
 {
-	"name": "oceandrift-database-dbal-tests",
+	"name": "oceandrift-database-dbal_sqlite3-tests",
     "sourceFiles": [ "tests.d" ],
     "importPaths": [ "." ],
     "targetPath": "bin",
