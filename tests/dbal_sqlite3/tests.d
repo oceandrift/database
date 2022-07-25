@@ -1,6 +1,6 @@
 module tests.dbal_sqlite3.tests;
 
-import oceandrift.db.dbal.driver;
+import oceandrift.db.dbal;
 import oceandrift.db.sqlite3;
 
 @safe:

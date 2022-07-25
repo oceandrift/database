@@ -1,6 +1,6 @@
 module tests.dbal_mariadb.tests;
 
-import oceandrift.db.dbal.driver;
+import oceandrift.db.dbal;
 import oceandrift.db.mariadb;
 
 @safe:

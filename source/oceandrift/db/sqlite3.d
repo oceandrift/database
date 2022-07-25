@@ -1,3 +1,13 @@
+/++
+    SQLite3 Database Driver
+
+    ---
+    DatabaseDriver db = new SQLite3DatabaseDriver("my-database-file.sqlite3");
+
+    db.connect(); // establish database connection
+    scope(exit) db.close(); // scope guard, to close the database connection when exiting the current scope
+    ---
++/
 module oceandrift.db.sqlite3;
 
 import oceandrift.db.dbal.driver;
@@ -43,123 +53,139 @@ class SQLiteX : Exception
     }
 }
 
+/++
+    Modes to open SQLite3 databases in
+ +/
 enum OpenMode
 {
-    /++ read-only +/
+    /// read-only
     ro = SQLITE_OPEN_READONLY,
 
-    /++ reading & writing +/
+    /// reading & writing
     rw = SQLITE_OPEN_READWRITE,
 
-    /++ reading & writing, create if not exists +/
+    /// reading & writing, create if not exists
     create = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
 
-    /++ in-memory +/
+    /// in-memory
     memory = OpenMode.create | SQLITE_OPEN_MEMORY,
 
-    /++ “multi-thread” mode, separate threads threads may not share database connections +/
+    /// “multi-thread” mode, separate threads threads may not share database connections
     multiThreadindMultiDB = SQLITE_OPEN_NOMUTEX,
 
-    /++ “serialized” mode, threads can share database connections +/
+    /// “serialized” mode, threads can share database connections
     multiThreadingSerialized = SQLITE_OPEN_FULLMUTEX,
 
-    /++ database filename cannot be a symbolic link +/
+    /// database filename cannot be a symbolic link
     noSymLink = SQLITE_OPEN_NOFOLLOW,
 }
 
+/++
+    SQLite3 function result code
+
+    Named Enum Wrapper for sqlite’s C API result codes
+ +/
 enum ResultCode
 {
-    /++ Successful result +/
+    /// Successful result
     ok = SQLITE_OK,
 
-    /++ Generic error +/
+    /// Generic error
     error = SQLITE_ERROR,
 
-    /++ Internal logic error in SQLite +/
+    /// Internal logic error in SQLite
     internalDatabaseError = SQLITE_INTERNAL,
 
-    /++ Access permission denied +/
+    /// Access permission denied
     permission = SQLITE_PERM,
 
-    /++ Callback routine requested an abort +/
+    /// Callback routine requested an abort
     abort = SQLITE_ABORT,
 
-    /++ The database file is locked +/
+    /// The database file is locked
     busy = SQLITE_BUSY,
 
-    /++ A table in the database is locked +/
+    /// A table in the database is locked
     locked = SQLITE_LOCKED,
 
-    /++ A malloc() failed +/
+    /// A malloc() failed
     noMem = SQLITE_NOMEM,
 
-    /++ Attempt to write a readonly database +/
+    /// Attempt to write a readonly database
     readOnly = SQLITE_READONLY,
 
-    /++ Operation terminated by sqlite3_interrupt()+/
+    /// Operation terminated by sqlite3_interrupt()
     interrupt = SQLITE_INTERRUPT,
 
-    /++ Some kind of disk I/O error occurred +/
+    /// Some kind of disk I/O error occurred
     ioError = SQLITE_IOERR,
 
-    /++ The database disk image is malformed +/
+    /// The database disk image is malformed
     corruptDiskImage = SQLITE_CORRUPT,
 
-    /++ Unknown opcode in sqlite3_file_control() +/
+    /// Unknown opcode in sqlite3_file_control()
     opCodeNotFound = SQLITE_NOTFOUND,
 
-    /++ Insertion failed because database is full +/
+    /// Insertion failed because database is full
     dbFull = SQLITE_FULL,
 
-    /++ Unable to open the database file +/
+    /// Unable to open the database file
     cantOpen = SQLITE_CANTOPEN,
 
-    /++ Database lock protocol error +/
+    /// Database lock protocol error
     protocolError = SQLITE_PROTOCOL,
 
-    /++ Internal use only +/
+    /// Internal use only
     empty = SQLITE_EMPTY,
 
-    /++ The database schema changed +/
+    /// The database schema changed
     schemaChanged = SQLITE_SCHEMA,
 
-    /++ String or BLOB exceeds size limit +/
+    /// String or BLOB exceeds size limit
     tooBig = SQLITE_TOOBIG,
 
-    /++ Abort due to constraint violation +/
+    /// Abort due to constraint violation
     constraintViolation = SQLITE_CONSTRAINT,
 
-    /++ Data type mismatch +/
+    /// Data type mismatch
     typeMismatch = SQLITE_MISMATCH,
 
-    /++ Library used incorrectly +/
+    /// Library used incorrectly
     libraryMisuse = SQLITE_MISUSE,
 
-    /++ Uses OS features not supported on host +/
+    /// Uses OS features not supported on host
     noLFS = SQLITE_NOLFS,
 
-    /++ Authorization denied +/
+    /// Authorization denied
     authDenied = SQLITE_AUTH,
 
-    /++ Not used +/
+    /// Not used
     format = SQLITE_FORMAT,
 
-    /++ 2nd parameter to sqlite3_bind out of range +/
+    /// 2nd parameter to sqlite3_bind out of range
     outOfRange = SQLITE_RANGE,
 
-    /++ File opened that is not a database file +/
+    /// File opened that is not a database file
     notADatabase = SQLITE_NOTADB,
 
-    /++ sqlite3_step() has finished executing +/
+    /// sqlite3_step() has finished executing
     done = SQLITE_DONE,
 
-    /++ sqlite3_step() has another row ready +/
+    /// sqlite3_step() has another row ready
     row = SQLITE_ROW,
 
+    ///
     notice = SQLITE_NOTICE,
+
+    ///
     warning = SQLITE_WARNING,
 }
 
+/++
+    SQLite3 database driver oceandrift
+
+    Built upon sqlite3 C library
+ +/
 final class SQLite3DatabaseDriver : DatabaseDriver
 {
 @safe:
@@ -241,6 +267,15 @@ final class SQLite3DatabaseDriver : DatabaseDriver
         }
     }
 
+    public
+    {
+        ///
+        sqlite3* getConnection()
+        {
+            return _handle;
+        }
+    }
+
     private
     {
         void connectImpl() @trusted
@@ -266,6 +301,7 @@ final class SQLite3DatabaseDriver : DatabaseDriver
     }
 }
 
+// undocumented on purpose
 final class SQLite3Statement : Statement
 {
 @safe:

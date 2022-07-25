@@ -1,3 +1,26 @@
+/++
+    MariaDB Database Driver
+
+    Supposed to be MySQL compatible, as well.
+
+    ---
+    DatabaseDriver db = new MariaDBDatabaseDriver(
+        "localhost",
+        "username",
+        "password",
+        "database name",    // (optional) “Database” on the server to use initially
+        3306,               // (optional) MariaDB server port
+    );
+
+    db.connect(); // establish database connection
+    scope(exit) db.close(); // scope guard, to close the database connection when exiting the current scope
+    ---
+
+    $(NOTE
+        If you don’t specify an inital database during the connection setup,
+        you’ll usually want to manually select one by executing a `USE databaseName;` statement.
+    )
+ +/
 module oceandrift.db.maridb;
 
 import mysql.safe;
@@ -9,7 +32,15 @@ import std.conv : to;
 alias DBALRow = oceandrift.db.dbal.driver.Row;
 alias MySQLRow = mysql.safe.Row;
 
-class MariaDBDatabaseDriver : DatabaseDriver
+/++
+    MariaDB database driver for oceandrift
+
+    Built upon mysql-native; uses its @safe API.
+
+    See_Also:
+        https://code.dlang.org/packages/mysql-native
+ +/
+final class MariaDBDatabaseDriver : DatabaseDriver
 {
 @safe:
 
@@ -24,7 +55,17 @@ class MariaDBDatabaseDriver : DatabaseDriver
         string _database;
     }
 
-    public this(string host, string username, string password, string database, ushort port = 3306)
+    /++
+        Constructor incl. connection setup
+
+        Params:
+            host = database host (the underlying mysql-native currently only supports TCP connections, unfortunately)
+            username = MariaDB user
+            password = password of the MariaDB user
+            database = initial database to use
+            port = MariaDB server port
+     +/
+    public this(string host, string username, string password, string database = null, ushort port = 3306)
     {
         _host = host;
         _port = port;
@@ -106,6 +147,7 @@ class MariaDBDatabaseDriver : DatabaseDriver
 
     public  // Extras
     {
+        ///
         Connection getConnection()
         {
             return this._connection;
@@ -121,7 +163,12 @@ private mixin template bindImpl(T)
     }
 }
 
-class MariaDBStatement : Statement
+/+
+    Wrapper over mysql-native’s Prepared and ResultRange
+
+    undocumented on purpose – shouldn’t be used directly, just stick to [oceandrift.db.dbal.Statement]
+ +/
+final class MariaDBStatement : Statement
 {
 @safe:
 
@@ -209,6 +256,9 @@ class MariaDBStatement : Statement
     }
 }
 
+/++
+    Creates an [oceandrift.db.dbal.driver.Row] from a [MySQLRow]
+ +/
 DBALRow mysqlToDBAL(MySQLRow mysql)
 {
     auto rowData = new DBValue[](mysql.length);
@@ -219,6 +269,9 @@ DBALRow mysqlToDBAL(MySQLRow mysql)
     return oceandrift.db.dbal.driver.Row(rowData);
 }
 
+/++
+    Creates a [DBValue] from a [MySQLVal]
+ +/
 DBValue mysqlToDBAL(MySQLVal mysql)
 {
     import taggedalgebraic : get, hasType;
