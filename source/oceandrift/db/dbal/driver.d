@@ -314,6 +314,8 @@ interface DatabaseDriver
                 Exception on failure (specific Exception type(s) may vary from implementation to implementation)
          +/
         Statement prepare(string sql);
+
+        DBValue lastInsertID();
     }
 }
 
@@ -332,37 +334,37 @@ interface Statement
             index = 1-indexed index-number of the dynamic parameter to bind to
             value = value to bind
      +/
-    void bind(int index, bool value);
+    void bind(int index, const bool value);
     /// ditto
-    void bind(int index, byte value);
+    void bind(int index, const byte value);
     /// ditto
-    void bind(int index, ubyte value);
+    void bind(int index, const ubyte value);
     /// ditto
-    void bind(int index, short value);
+    void bind(int index, const short value);
     /// ditto
-    void bind(int index, ushort value);
+    void bind(int index, const ushort value);
     /// ditto
-    void bind(int index, int value);
+    void bind(int index, const int value);
     /// ditto
-    void bind(int index, uint value);
+    void bind(int index, const uint value);
     /// ditto
-    void bind(int index, long value);
+    void bind(int index, const long value);
     /// ditto
-    void bind(int index, ulong value);
+    void bind(int index, const ulong value);
     /// ditto
-    void bind(int index, double value);
+    void bind(int index, const double value);
     /// ditto
-    void bind(int index, const(ubyte)[] value);
+    void bind(int index, const const(ubyte)[] value);
     /// ditto
-    void bind(int index, string value);
+    void bind(int index, const string value);
     /// ditto
-    void bind(int index, DateTime value);
+    void bind(int index, const DateTime value);
     /// ditto
-    void bind(int index, TimeOfDay value);
+    void bind(int index, const TimeOfDay value);
     /// ditto
-    void bind(int index, Date value);
+    void bind(int index, const Date value);
     /// ditto
-    void bind(int index, typeof(null));
+    void bind(int index, const typeof(null));
 
     /++
         Executes the prepared statement using the currently bound values
@@ -393,6 +395,47 @@ interface Statement
      +/
     Row front();
 }
+
+void bindDBValue(Statement stmt, int index, const DBValue value)
+{
+    final switch (value.kind) with (DBValue.Kind)
+    {
+    case bool_:
+        return stmt.bind(index, value.get!bool);
+    case byte_:
+        return stmt.bind(index, value.get!byte);
+    case ubyte_:
+        return stmt.bind(index, value.get!ubyte);
+    case short_:
+        return stmt.bind(index, value.get!short);
+    case ushort_:
+        return stmt.bind(index, value.get!ushort);
+    case int_:
+        return stmt.bind(index, value.get!int);
+    case uint_:
+        return stmt.bind(index, value.get!uint);
+    case long_:
+        return stmt.bind(index, value.get!long);
+    case ulong_:
+        return stmt.bind(index, value.get!ulong);
+    case double_:
+        return stmt.bind(index, value.get!double);
+    case ubytes_:
+        return stmt.bind(index, value.get!(const(ubyte)[]));
+    case string_:
+        return stmt.bind(index, value.get!string);
+    case dateTime_:
+        return stmt.bind(index, value.get!DateTime);
+    case timeOfDay_:
+        return stmt.bind(index, value.get!TimeOfDay);
+    case date_:
+        return stmt.bind(index, value.get!Date);
+    case null_:
+        return stmt.bind(index, null);
+    }
+}
+
+static assert(isInputRange!Statement);
 
 /++
     Executes a «Prepared Statement» after binding the specified parameters to it
@@ -433,8 +476,6 @@ void executeWith(Args...)(Statement stmt, Args bindValues)
     stmt.execute();
 }
 
-static assert(isInputRange!Statement);
-
 private union _DBValue
 {
     bool bool_;
@@ -459,7 +500,13 @@ private union _DBValue
     Database Value (representing a row’s column)
  +/
 alias DBValue = TaggedAlgebraic!_DBValue;
-public import taggedalgebraic : get;
+
+public import taggedalgebraic : get, hasType;
+
+bool isNull(DBValue value)
+{
+    return (value.kind == DBValue.Kind.null_);
+}
 
 /++
     Database Result Row

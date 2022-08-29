@@ -10,12 +10,13 @@
 +/
 module oceandrift.db.sqlite3;
 
-import oceandrift.db.dbal.driver;
-
 import etc.c.sqlite3;
+import std.array : appender, Appender;
 import std.string : fromStringz, toStringz;
 import std.format : format;
+
 import oceandrift.db.dbal.driver;
+import oceandrift.db.dbal.v4;
 
 @safe:
 
@@ -265,6 +266,11 @@ final class SQLite3DatabaseDriver : DatabaseDriver
         {
             return new SQLite3Statement(_handle, sql);
         }
+
+        DBValue lastInsertID() @trusted
+        {
+            return DBValue(_handle.sqlite3_last_insert_rowid());
+        }
     }
 
     public
@@ -372,32 +378,32 @@ final class SQLite3Statement : Statement
 
     public
     {
-        void bind(int index, bool value)
+        void bind(int index, const bool value)
         {
             return this.bind(index, int(value));
         }
 
-        void bind(int index, byte value)
+        void bind(int index, const byte value)
         {
             return this.bind(index, int(value));
         }
 
-        void bind(int index, ubyte value)
+        void bind(int index, const ubyte value)
         {
             return this.bind(index, int(value));
         }
 
-        void bind(int index, short value)
+        void bind(int index, const short value)
         {
             return this.bind(index, int(value));
         }
 
-        void bind(int index, ushort value)
+        void bind(int index, const ushort value)
         {
             return this.bind(index, int(value));
         }
 
-        void bind(int index, int value) @trusted
+        void bind(int index, const int value) @trusted
         {
             this.resetIfNeeded();
 
@@ -405,12 +411,12 @@ final class SQLite3Statement : Statement
             enforce(x, "Parameter binding failed");
         }
 
-        void bind(int index, uint value) @trusted
+        void bind(int index, const uint value) @trusted
         {
             return this.bind(index, long(value));
         }
 
-        void bind(int index, long value) @trusted
+        void bind(int index, const long value) @trusted
         {
             this.resetIfNeeded();
 
@@ -419,12 +425,12 @@ final class SQLite3Statement : Statement
         }
 
         // WARNING: will store value as if it were signed (→ long)
-        void bind(int index, ulong value)
+        void bind(int index, const ulong value)
         {
             return this.bind(index, long(value));
         }
 
-        void bind(int index, double value) @trusted
+        void bind(int index, const double value) @trusted
         {
             this.resetIfNeeded();
 
@@ -432,7 +438,7 @@ final class SQLite3Statement : Statement
             enforce(x, "Parameter binding failed");
         }
 
-        void bind(int index, const(ubyte)[] value) @trusted
+        void bind(int index, const const(ubyte)[] value) @trusted
         {
             this.resetIfNeeded();
 
@@ -440,7 +446,7 @@ final class SQLite3Statement : Statement
             enforce(x, "Parameter binding failed");
         }
 
-        void bind(int index, string value) @trusted
+        void bind(int index, const string value) @trusted
         {
             this.resetIfNeeded();
 
@@ -448,7 +454,7 @@ final class SQLite3Statement : Statement
             enforce(x, "Parameter binding failed");
         }
 
-        void bind(int index, DateTime value)
+        void bind(int index, const DateTime value)
         {
             return this.bind(
                 index,
@@ -458,7 +464,7 @@ final class SQLite3Statement : Statement
             );
         }
 
-        void bind(int index, TimeOfDay value)
+        void bind(int index, const TimeOfDay value)
         {
             return this.bind(
                 index,
@@ -466,7 +472,7 @@ final class SQLite3Statement : Statement
             );
         }
 
-        void bind(int index, Date value)
+        void bind(int index, const Date value)
         {
             return this.bind(
                 index,
@@ -474,7 +480,7 @@ final class SQLite3Statement : Statement
             );
         }
 
-        void bind(int index, typeof(null)) @trusted
+        void bind(int index, const typeof(null)) @trusted
         {
             this.resetIfNeeded();
             immutable x = _stmtHandle.sqlite3_bind_null(index);
@@ -486,12 +492,12 @@ final class SQLite3Statement : Statement
     {
         void resetIfNeeded() @trusted
         {
-            if (_status != 0)
-            {
-                immutable r = _stmtHandle.sqlite3_reset();
-                enforce(r, "Reset failed");
-                _status = 0;
-            }
+            if (_status == 0)
+                return;
+
+            immutable r = _stmtHandle.sqlite3_reset();
+            enforce(r, "Reset failed");
+            _status = 0;
         }
 
         void populateRow() @trusted
@@ -535,5 +541,211 @@ final class SQLite3Statement : Statement
 
             _front = Row(rowData);
         }
+    }
+}
+
+struct SQLite3Dialect
+{
+@safe pure:
+
+    static BuiltQuery build(const Select select)
+    {
+        auto sql = appender!string("SELECT");
+
+        foreach (idx, se; select.columns)
+        {
+            if (idx > 0)
+                sql ~= ',';
+
+            se.toSQL(sql);
+        }
+
+        sql ~= ` FROM "`;
+        sql ~= select.query.table.name.escapeIdentifier();
+        sql ~= '"';
+
+        const query = CompilerQuery(select.query);
+        query.where.whereToSQL(sql);
+        query.limitToSQL(sql);
+
+        return BuiltQuery(sql.data, query.where.placeholders, query.preSet);
+    }
+
+    static BuiltQuery build(const Update update)
+    {
+        auto sql = appender!string("UPDATE");
+        sql ~= ` "`;
+        sql ~= update.query.table.name.escapeIdentifier();
+        sql ~= `"`;
+
+        bool first = true;
+        foreach (key; update.set.byKey)
+        {
+            if (!first)
+            {
+                sql ~= ',';
+            }
+            else
+            {
+                first = false;
+            }
+
+            sql ~= ` "`;
+            sql ~= key.escapeIdentifier;
+            sql ~= `"=?`;
+        }
+
+        const query = CompilerQuery(update.query);
+        query.where.whereToSQL(sql);
+        query.limitToSQL(sql);
+
+        return BuiltQuery(sql.data, query.where.placeholders, query.preSet);
+    }
+
+    static BuiltQuery build(const Insert query)
+    {
+        assert(0);
+    }
+
+    static BuiltQuery build(const Delete query)
+    {
+        assert(0);
+    }
+}
+
+static assert(isQueryCompilerDialect!SQLite3Dialect);
+
+private
+{
+pure:
+
+    void whereToSQL(const Where where, Appender!string sql)
+    {
+        if (where.tokens.length == 0)
+            return;
+
+        sql ~= " WHERE";
+
+        foreach (Token t; where.tokens)
+        {
+            final switch (t.type) with (Token)
+            {
+            case Type.column:
+                sql ~= ` "`;
+                (delegate() @trusted { sql ~= t.data.str.escapeIdentifier(); })();
+                sql ~= '"';
+                break;
+            case Type.placeholder:
+                sql ~= " ?";
+                break;
+            case Type.comparisonOperator:
+                sql ~= t.data.op.toSQL;
+                break;
+
+            case Type.and:
+                sql ~= " AND";
+                break;
+            case Type.or:
+                sql ~= " OR";
+                break;
+
+            case Type.not:
+                sql ~= " NOT";
+                break;
+
+            case Type.leftParenthesis:
+                sql ~= " (";
+                break;
+            case Type.rightParenthesis:
+                sql ~= " )";
+                break;
+
+            case Type.invalid:
+                assert(0, "Invalid SQL token in where clause");
+            }
+        }
+    }
+
+    void limitToSQL(CompilerQuery q, ref Appender!string sql)
+    {
+        if (!q.limit)
+            return;
+
+        sql ~= " LIMIT ?";
+    }
+
+    void toSQL(SelectExpression se, ref Appender!string sql)
+    {
+        sql ~= ' ';
+
+        enum switchCase(string aggr) = `case ` ~ aggr ~ `: sql ~= "` ~ aggr ~ `("; break;`;
+
+        final switch (se.aggregateFunction) with (AggregateFunction)
+        {
+            mixin(switchCase!"avg");
+            mixin(switchCase!"count");
+            mixin(switchCase!"max");
+            mixin(switchCase!"min");
+            mixin(switchCase!"sum");
+            mixin(switchCase!"group_concat");
+        case none:
+            break;
+        }
+
+        if (se.distinct)
+            sql ~= "DISTINCT ";
+
+        if (se.columnName == "*")
+        {
+            sql ~= '*';
+        }
+        else
+        {
+            sql ~= '"';
+            sql ~= se.columnName.escapeIdentifier;
+            sql ~= '"';
+        }
+
+        if (se.aggregateFunction != AggregateFunction.none)
+            sql ~= ')';
+    }
+
+    string toSQL(ComparisonOperator op)
+    {
+        final switch (op) with (ComparisonOperator)
+        {
+        case invalid:
+            assert(0, "Invalid comparison operator");
+
+        case equals:
+            return " =";
+
+        case notEquals:
+            return " <>";
+        case lessThan:
+            return " <";
+        case greaterThan:
+            return " >";
+        case lessThanOrEquals:
+            return " <=";
+        case greaterThanOrEquals:
+            return " >=";
+        case in_:
+            return " IN";
+        case like:
+            return " LIKE";
+
+        case isNull:
+            return " IS NULL";
+        case isNotNull:
+            return " IS NOT NULL";
+        }
+    }
+
+    string escapeIdentifier(string tableOrColumn) pure
+    {
+        import std.string : replace;
+
+        return tableOrColumn.replace('"', `""`);
     }
 }

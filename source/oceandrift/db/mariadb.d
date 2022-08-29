@@ -143,6 +143,11 @@ final class MariaDBDatabaseDriver : DatabaseDriver
         {
             return new MariaDBStatement(this._connection, sql);
         }
+
+        DBValue lastInsertID()
+        {
+            return DBValue(_connection.lastInsertID());
+        }
     }
 
     public  // Extras
@@ -157,7 +162,7 @@ final class MariaDBDatabaseDriver : DatabaseDriver
 
 private mixin template bindImpl(T)
 {
-    void bind(int index, T value) @safe
+    void bind(int index, const T value) @safe
     {
         _stmt.setArg(index - 1, value);
     }
