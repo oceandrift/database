@@ -353,4 +353,26 @@ public
             assert(0);
         }
     }
+
+    unittest
+    {
+        Query qMountainsGreaterThanInUSorCA = table("mountain").qb
+            .where("height", '>')
+            .whereParentheses(q => q
+                    .where("location", '=', "US")
+                    .where!or("location", '=', "CA")
+            );
+
+        Select selectQ = qMountainsGreaterThanInUSorCA.select("*");
+
+        BuiltQuery bq = selectQ.build!SQLite3Dialect();
+
+        assert(
+            bq.sql == `SELECT * FROM "mountain" WHERE "height" > ? AND ( "location" = ? OR "location" = ? )`
+        );
+        assert(bq.preSet.where[1].get!string == "US");
+        assert(bq.preSet.where[2].get!string == "CA");
+        assert(bq.wherePlaceholders == 3);
+        assert(bq.preSet.limit.isNull);
+    }
 }

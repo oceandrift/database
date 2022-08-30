@@ -241,7 +241,7 @@ Query where(bool logicalJunction = and, TComparisonOperator, T)(
 {
     q._preSet.where[q._where.placeholders] = value;
 
-    return q.where(column, op);
+    return q.where!logicalJunction(column, op);
 }
 
 Query whereParentheses(bool logicalJunction = and)(Query q, Query delegate(scope Query q) @safe pure conditions)
