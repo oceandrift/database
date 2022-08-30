@@ -15,7 +15,6 @@ subPackage {
     description "DataBase Abstraction Layer"
     targetPath "bin"
     excludedSourceFiles "source/oceandrift/db/mariadb.d" "source/oceandrift/db/orm.d" "source/oceandrift/db/sqlite3.d" // DCD does not properly support “sourceFiles”
-    dependency "taggedalgebraic" version="~>0.11.22"
 }
 
 dependency ":mariadb" version="*"

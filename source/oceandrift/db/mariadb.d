@@ -21,7 +21,7 @@
         you’ll usually want to manually select one by executing a `USE databaseName;` statement.
     )
  +/
-module oceandrift.db.maridb;
+module oceandrift.db.mariadb;
 
 import mysql.safe;
 import oceandrift.db.dbal.driver;

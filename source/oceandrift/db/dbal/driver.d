@@ -400,15 +400,6 @@ interface Statement
     Row front();
 }
 
-/++
-    Helper function that should be in std.sumtype,
-    yet isn’t really. Can be only found in its docs.
- +/
-alias exactly(T, alias fun) = function(arg) {
-    static assert(is(typeof(arg) == T));
-    return fun(arg);
-};
-
 void bindDBValue(Statement stmt, int index, const DBValue value)
 {
     value.match!(
