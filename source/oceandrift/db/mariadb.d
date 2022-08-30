@@ -269,7 +269,7 @@ DBALRow mysqlToDBAL(MySQLRow mysql)
     auto rowData = new DBValue[](mysql.length);
 
     for (size_t i = 0; i < mysql.length; ++i)
-        rowData[i] = mysql[i].mysqlToDBAL();
+        (delegate() @trusted { rowData[i] = mysql[i].mysqlToDBAL(); })();
 
     return oceandrift.db.dbal.driver.Row(rowData);
 }
@@ -281,53 +281,83 @@ DBValue mysqlToDBAL(MySQLVal mysql)
 {
     import taggedalgebraic : get, hasType;
 
-    enum direct(T) = "if (mysql.hasType!("
-        ~ T.stringof
-        ~ ")()) return DBValue(mysql.get!("
-        ~ T.stringof
-        ~ ")());";
-
-    enum indirect(T, TCast) = "if (mysql.hasType!("
-        ~ T.stringof
-        ~ ")()) return DBValue(cast("
-        ~ TCast.stringof
-        ~ ") mysql.get!("
-        ~ T.stringof
-        ~ ")());";
-
-    mixin(direct!(typeof(null)));
-
-    mixin(direct!ulong);
-    mixin(direct!long);
-
-    mixin(direct!uint);
-    mixin(direct!int);
-
-    mixin(direct!string);
-
-    mixin(direct!ubyte);
-    mixin(direct!byte);
-    mixin(direct!short);
-    mixin(direct!ushort);
-    mixin(direct!bool);
-
-    mixin(indirect!(float, double));
-    mixin(direct!double);
-    mixin(direct!DateTime);
-    mixin(direct!TimeOfDay);
-    mixin(direct!Date);
-    mixin(direct!(const(ubyte)[]));
-    mixin(indirect!(ubyte[], const(ubyte)[]));
-    mixin(indirect!(const(char)[], const(ubyte)[]));
-
-    if (mysql.hasType!Timestamp)
+    final switch (mysql.kind) with (MySQLVal)
     {
-        // This is just there as a precaution and will hopefully never be triggered.
-        // No known bug.
-        assert(0, "mysql-native caught lying:"
-                ~ "«When TIMESTAMPs are retrieved as part of a result set it will be as DateTime structs.»"
-        );
+    case Kind.Blob:
+        return DBValue(mysql.get!(ubyte[]));
+    case Kind.CBlob:
+        return DBValue(mysql.get!(const(ubyte)[]));
+    case Kind.Null:
+        return DBValue(mysql.get!(null_t));
+    case Kind.Bit:
+        return DBValue(mysql.get!(bool));
+    case Kind.UByte:
+        return DBValue(mysql.get!(ubyte));
+    case Kind.Byte:
+        return DBValue(mysql.get!(byte));
+    case Kind.UShort:
+        return DBValue(mysql.get!(ushort));
+    case Kind.Short:
+        return DBValue(mysql.get!(short));
+    case Kind.UInt:
+        return DBValue(mysql.get!(uint));
+    case Kind.Int:
+        return DBValue(mysql.get!(int));
+    case Kind.ULong:
+        return DBValue(mysql.get!(ulong));
+    case Kind.Long:
+        return DBValue(mysql.get!(long));
+    case Kind.Float:
+        return DBValue(mysql.get!(float));
+    case Kind.Double:
+        return DBValue(mysql.get!(double));
+    case Kind.DateTime:
+        return DBValue(mysql.get!(DateTime));
+    case Kind.Time:
+        return DBValue(mysql.get!(TimeOfDay));
+    case Kind.Timestamp:
+        return DBValue(mysql.get!(Timestamp).rep);
+    case Kind.Date:
+        return DBValue(mysql.get!(Date));
+    case Kind.Text:
+        return DBValue(mysql.get!(string));
+    case Kind.CText:
+        return DBValue(mysql.get!(const(char)[]));
+    case Kind.BitRef:
+        return DBValue(*mysql.get!(const(bool)*));
+    case Kind.UByteRef:
+        return DBValue(*mysql.get!(const(ubyte)*));
+    case Kind.ByteRef:
+        return DBValue(*mysql.get!(const(byte)*));
+    case Kind.UShortRef:
+        return DBValue(*mysql.get!(const(ushort)*));
+    case Kind.ShortRef:
+        return DBValue(*mysql.get!(const(short)*));
+    case Kind.UIntRef:
+        return DBValue(*mysql.get!(const(uint)*));
+    case Kind.IntRef:
+        return DBValue(*mysql.get!(const(int)*));
+    case Kind.ULongRef:
+        return DBValue(*mysql.get!(const(ulong)*));
+    case Kind.LongRef:
+        return DBValue(*mysql.get!(const(long)*));
+    case Kind.FloatRef:
+        return DBValue(*mysql.get!(const(float)*));
+    case Kind.DoubleRef:
+        return DBValue(*mysql.get!(const(double)*));
+    case Kind.DateTimeRef:
+        return DBValue(*mysql.get!(const(DateTime)*));
+    case Kind.TimeRef:
+        return DBValue(*mysql.get!(const(TimeOfDay)*));
+    case Kind.DateRef:
+        return DBValue(*mysql.get!(const(Date)*));
+    case Kind.TextRef:
+        return DBValue(*mysql.get!(const(string)*));
+    case Kind.CTextRef:
+        return DBValue((*mysql.get!(const(char[])*)).dup);
+    case Kind.BlobRef:
+        return DBValue(*mysql.get!(const(ubyte[])*));
+    case Kind.TimestampRef:
+        return DBValue(mysql.get!(const(Timestamp)*).rep);
     }
-
-    assert(0, "No DBAL conversion routine implemented for MySQL type: " ~ mysql.kind.to!string);
 }

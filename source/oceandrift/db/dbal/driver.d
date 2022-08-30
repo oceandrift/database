@@ -485,6 +485,8 @@ alias DBValue = SumType!(
     Date,
 );
 
+alias null_t = typeof(null);
+
 T get(T)(DBValue value)
 {
     return value.tryMatch!((T t) => t);

@@ -35,7 +35,7 @@ unittest
 
     count.execute();
     assert(!count.empty);
-    assert(count.front[0] == 0);
+    assert(count.front[0].get!ulong == 0);
 
     Statement insert = driver.prepare("INSERT INTO `demo`() VALUES()");
     scope (exit)
@@ -55,7 +55,7 @@ unittest
 
         count.execute();
         assert(!count.empty);
-        assert(count.front[0] == 1);
+        assert(count.front[0].get!ulong == 1);
 
         {
             driver.transactionStart();
@@ -67,12 +67,12 @@ unittest
 
             count.execute();
             assert(!count.empty);
-            assert(count.front[0] == 3);
+            assert(count.front[0].get!ulong == 3);
 
             driver.transactionRollback();
             count.execute();
             assert(!count.empty);
-            assert(count.front[0] == 1);
+            assert(count.front[0].get!ulong == 1);
         }
 
         {
@@ -87,12 +87,12 @@ unittest
 
             count.execute();
             assert(!count.empty);
-            assert(count.front[0] == 4);
+            assert(count.front[0].get!ulong == 4);
 
             driver.transactionCommit();
             count.execute();
             assert(!count.empty);
-            assert(count.front[0] == 4);
+            assert(count.front[0].get!ulong == 4);
         }
     }
 
@@ -161,16 +161,16 @@ unittest
     assert(!select.empty);
 
     Row row1 = select.front();
-    assert(row1[0] == 3);
-    assert(row1[1] == "yxcv");
-    assert(row1[2] == "bnm,");
+    assert(row1[0].get!ulong == 3);
+    assert(row1[1].get!string == "yxcv");
+    assert(row1[2].get!string == "bnm,");
 
     select.popFront();
     assert(!select.empty);
     Row row2 = select.front();
-    assert(row2[0] == 4);
-    assert(row2[1] == "qaz");
-    assert(row2[2] == "wsx");
+    assert(row2[0].get!ulong == 4);
+    assert(row2[1].get!string == "qaz");
+    assert(row2[2].get!string == "wsx");
 
     driver.transactionRollback();
 
@@ -227,13 +227,13 @@ unittest
         assert(!select.empty);
 
         Row row1 = select.front();
-        assert(row1[0] == 3);
+        assert(row1[0].get!int == 3);
 
         select.popFront();
         assert(!select.empty);
         Row row2 = select.front();
-        assert(row2[0] == 2);
-        assert(row2[1] == 30);
+        assert(row2[0].get!int == 2);
+        assert(row2[1].get!ubyte == 30);
 
         select.popFront();
         assert(select.empty);
@@ -244,7 +244,7 @@ unittest
 
         Statement stmtCount = driver.prepare("SELECT COUNT(*) FROM `person`");
         stmtCount.execute();
-        assert(stmtCount.front()[0] == 4);
+        assert(stmtCount.front()[0].get!long == 4);
         stmtCount.popFront();
         assert(stmtCount.empty);
     }
@@ -311,11 +311,11 @@ unittest
         assert(!select.empty);
 
         Row row = select.front;
-        assert(row[0] == blablabla);
+        assert(row[0].get!string == blablabla);
 
         ubyte[] bla2 = blablabla.dup;
         bla2[2] += 1;
-        assert(row[0] != bla2);
+        assert(row[0].get!string != bla2);
 
         select.popFront();
         assert(select.empty);
@@ -367,11 +367,11 @@ unittest
 
     countAny.execute();
     assert(!countAny.empty);
-    assert(countAny.front[0] == 4);
+    assert(countAny.front[0].get!long == 4);
 
     countByName.executeWith("national");
     assert(!countByName.empty);
-    assert(countByName.front[0] == 2);
+    assert(countByName.front[0].get!long == 2);
 
     getByName.executeWith("New Year");
     assert(!getByName.empty);
@@ -430,7 +430,7 @@ unittest
 
         test.execute();
         assert(!test.empty);
-        assert(test.front[0] == 1);
+        assert(test.front[0].get!long == 1);
     }
 
     {
@@ -439,8 +439,8 @@ unittest
             select.close();
 
         select.execute();
-        assert(select.front[0] == date);
-        assert(select.front[1] == time);
-        assert(select.front[2] == DateTime(date, time));
+        assert(select.front[0].get!Date == date);
+        assert(select.front[1].get!TimeOfDay == time);
+        assert(select.front[2].get!DateTime == DateTime(date, time));
     }
 }
