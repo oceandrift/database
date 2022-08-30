@@ -33,10 +33,10 @@ Statement prepareBuiltQuery(DatabaseDriver db, BuiltQuery builtQuery)
     Statement stmt = db.prepare(builtQuery.sql);
 
     foreach (index, value; builtQuery.preSet.where)
-        stmt.bindDBValue(index, value);
+        stmt.bindDBValue(index + 1, value);
 
     if (!builtQuery.preSet.limit.isNull)
-        stmt.bind(cast(int) builtQuery.wherePlaceholders, builtQuery.preSet.limit.get);
+        stmt.bind(cast(int) builtQuery.wherePlaceholders + 1, builtQuery.preSet.limit.get);
 
     return stmt;
 }
@@ -237,12 +237,9 @@ Query where(bool logicalJunction = and, TComparisonOperator, T)(
     string column,
     TComparisonOperator op,
     T value
-) // TODO: template constraint
+) @trusted // TODO: template constraint
 {
-    static if (is(T == DBValue))
-        q._preSet.where[q._where.placeholders] = value;
-    else
-        q._preSet.where[q._where.placeholders] = DBValue(value);
+    q._preSet.where[q._where.placeholders] = value;
 
     return q.where(column, op);
 }

@@ -210,11 +210,15 @@
 
     Similar to [DatabaseDriver] there’s a [Statement.close] method.
     Finalize/close the underlying prepared statement and do any necessary cleanup.
+
+    $(NOTE
+        Special thanks to Paul “Snarwin” Backus.
+    )
  +/
 module oceandrift.db.dbal.driver;
 
-import taggedalgebraic : TaggedAlgebraic;
 import std.range : isInputRange;
+import std.sumtype;
 
 public import std.datetime : Date, DateTime, TimeOfDay;
 
@@ -396,43 +400,35 @@ interface Statement
     Row front();
 }
 
+/++
+    Helper function that should be in std.sumtype,
+    yet isn’t really. Can be only found in its docs.
+ +/
+alias exactly(T, alias fun) = function(arg) {
+    static assert(is(typeof(arg) == T));
+    return fun(arg);
+};
+
 void bindDBValue(Statement stmt, int index, const DBValue value)
 {
-    final switch (value.kind) with (DBValue.Kind)
-    {
-    case bool_:
-        return stmt.bind(index, value.get!bool);
-    case byte_:
-        return stmt.bind(index, value.get!byte);
-    case ubyte_:
-        return stmt.bind(index, value.get!ubyte);
-    case short_:
-        return stmt.bind(index, value.get!short);
-    case ushort_:
-        return stmt.bind(index, value.get!ushort);
-    case int_:
-        return stmt.bind(index, value.get!int);
-    case uint_:
-        return stmt.bind(index, value.get!uint);
-    case long_:
-        return stmt.bind(index, value.get!long);
-    case ulong_:
-        return stmt.bind(index, value.get!ulong);
-    case double_:
-        return stmt.bind(index, value.get!double);
-    case ubytes_:
-        return stmt.bind(index, value.get!(const(ubyte)[]));
-    case string_:
-        return stmt.bind(index, value.get!string);
-    case dateTime_:
-        return stmt.bind(index, value.get!DateTime);
-    case timeOfDay_:
-        return stmt.bind(index, value.get!TimeOfDay);
-    case date_:
-        return stmt.bind(index, value.get!Date);
-    case null_:
-        return stmt.bind(index, null);
-    }
+    value.match!(
+        (ref const typeof(null) value) => stmt.bind(index, value),
+        (ref const bool value) => stmt.bind(index, value),
+        (ref const byte value) => stmt.bind(index, value),
+        (ref const ubyte value) => stmt.bind(index, value),
+        (ref const short value) => stmt.bind(index, value),
+        (ref const ushort value) => stmt.bind(index, value),
+        (ref const int value) => stmt.bind(index, value),
+        (ref const uint value) => stmt.bind(index, value),
+        (ref const long value) => stmt.bind(index, value),
+        (ref const ulong value) => stmt.bind(index, value),
+        (ref const double value) => stmt.bind(index, value),
+        (ref const const(ubyte)[] value) => stmt.bind(index, value),
+        (ref const string value) => stmt.bind(index, value),
+        (ref const DateTime value) => stmt.bind(index, value),
+        (ref const TimeOfDay value) => stmt.bind(index, value),
+        (ref const Date value) => stmt.bind(index, value),
+    );
 }
 
 static assert(isInputRange!Statement);
@@ -476,36 +472,43 @@ void executeWith(Args...)(Statement stmt, Args bindValues)
     stmt.execute();
 }
 
-private union _DBValue
-{
-    bool bool_;
-    byte byte_;
-    ubyte ubyte_;
-    short short_;
-    ushort ushort_;
-    int int_;
-    uint uint_;
-    long long_;
-    ulong ulong_;
-    double double_;
-    const(ubyte)[] ubytes_;
-    string string_;
-    DateTime dateTime_;
-    TimeOfDay timeOfDay_;
-    Date date_;
-    typeof(null) null_;
-}
-
 /++
     Database Value (representing a row’s column)
  +/
-alias DBValue = TaggedAlgebraic!_DBValue;
+alias DBValue = SumType!(
+    typeof(null),
+    bool,
+    byte,
+    ubyte,
+    short,
+    ushort,
+    int,
+    uint,
+    long,
+    ulong,
+    double,
+    const(ubyte)[],
+    string,
+    DateTime,
+    TimeOfDay,
+    Date,
+);
 
-public import taggedalgebraic : get, hasType;
+T get(T)(DBValue value)
+{
+    return value.tryMatch!((T t) => t);
+}
 
 bool isNull(DBValue value)
 {
-    return (value.kind == DBValue.Kind.null_);
+    try
+    {
+        return value.tryMatch!((typeof(null)) => true);
+    }
+    catch (MatchException)
+    {
+        return false;
+    }
 }
 
 /++

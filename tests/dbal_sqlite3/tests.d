@@ -11,7 +11,8 @@ void print(SQLiteX ex) @trusted
 
     stderr.writeln(
         "SQLite3 Exception; status code: ", cast(int) ex.code, " = ", ex.code,
-        "; msg: ", ex.msg
+        "; msg: ", ex.msg,
+        "\n\tEX Trace:", ex.info, "\n\t--- End of Trace"
     );
 }
 
@@ -97,16 +98,16 @@ unittest
         assert(!stmt.empty);
 
         Row row1 = stmt.front();
-        assert(row1[0] == 3);
-        assert(row1[1] == "yxcv");
-        assert(row1[2] == "bnm,");
+        assert(row1[0].get!long == 3);
+        assert(row1[1].get!string == "yxcv");
+        assert(row1[2].get!string == "bnm,");
 
         stmt.popFront();
         assert(!stmt.empty);
         Row row2 = stmt.front();
-        assert(row2[0] == 4);
-        assert(row2[1] == "qaz");
-        assert(row2[2] == "wsx");
+        assert(row2[0].get!long == 4);
+        assert(row2[1].get!string == "qaz");
+        assert(row2[2].get!string == "wsx");
 
         driver.transactionRollback();
         assert(driver.autoCommit() == true);
@@ -172,13 +173,13 @@ unittest
             assert(!stmt.empty);
 
             Row row1 = stmt.front();
-            assert(row1[0] == 3);
+            assert(row1[0].get!long == 3);
 
             stmt.popFront();
             assert(!stmt.empty);
             Row row2 = stmt.front();
-            assert(row2[0] == 2);
-            assert(row2[1] == 30);
+            assert(row2[0].get!long == 2);
+            assert(row2[1].get!long == 30);
 
             stmt.popFront();
             assert(stmt.empty);
@@ -189,7 +190,7 @@ unittest
 
             Statement stmtCount = driver.prepare(`SELECT COUNT(*) FROM "person"`);
             stmtCount.execute();
-            assert(stmtCount.front()[0] == 4);
+            assert(stmtCount.front()[0].get!long == 4);
             stmtCount.popFront();
             assert(stmtCount.empty);
         }
@@ -261,7 +262,7 @@ unittest
             assert(!select.empty);
 
             Row row = select.front;
-            assert(row[0] == blablabla);
+            assert(row[0].get!(const(ubyte)[]) == blablabla);
 
             select.popFront();
             assert(select.empty);
@@ -272,5 +273,84 @@ unittest
     {
         ex.print();
         assert(0);
+    }
+}
+
+public
+{
+    private import oceandrift.db.dbal.v4;
+
+    // Query builder
+
+    unittest
+    {
+        try
+        {
+            DatabaseDriver driver = new SQLite3DatabaseDriver(":memory:");
+
+            driver.connect();
+            scope (exit)
+                driver.close();
+
+            driver.execute(`
+                CREATE TABLE "misc" (
+                    "id" INTEGER PRIMARY KEY,
+                    "name" TEXT NOT NULL,
+                    "age" INTEGER NOT NULL
+                )
+            `);
+
+            enum a = table("misc").qb
+                    .where("id", ComparisonOperator.greaterThan)
+                    .where("age", '>')
+                    .select("*", count!distinct("name")); //.where("id", '>').where("name", like);
+
+            enum BuiltQuery bs = SQLite3Dialect.build(a);
+            assert(
+                bs.sql == `SELECT *, count(DISTINCT "name") FROM "misc" WHERE "id" > ? AND "age" > ?`
+            );
+
+            Statement stmt = driver.prepareBuiltQuery(bs);
+            stmt.execute();
+            assert(!stmt.empty());
+            assert(stmt.front[0].isNull);
+            assert(stmt.front[1].isNull);
+            assert(stmt.front[2].isNull);
+            assert(stmt.front[3].get!long == 0);
+
+            enum b = table("misc").qb
+                    .where("id", ComparisonOperator.lessThan)
+                    .whereParentheses(q => q
+                            .where("age", '>')
+                            .where!or("age", '<')
+                    )
+                    .select("*").build!SQLite3Dialect;
+            assert(b.sql == `SELECT * FROM "misc" WHERE "id" < ? AND ( "age" > ? OR "age" < ? )`);
+
+            /*auto c = table("misc").qb
+                .where("age", '>', DBValue(60))
+                .select("*"); //.where("id", '>').where("name", like);
+
+            auto d = table("misc").qb
+                .where("age", '>', 60)
+                .select(count("*")); //.where("id", '>').where("name", like);*/
+
+            enum e1 = table("misc").qb
+                    .where("age", '>', 0)
+                    .limit(12);
+            enum e = e1
+                    .select("id").build!SQLite3Dialect;
+
+            Statement eStmt = driver.prepareBuiltQuery(e);
+            eStmt.execute();
+            assert(eStmt.empty);
+
+            assert(e.sql == `SELECT "id" FROM "misc" WHERE "age" > ? LIMIT ?`);
+        }
+        catch (SQLiteX ex)
+        {
+            ex.print();
+            assert(0);
+        }
     }
 }
