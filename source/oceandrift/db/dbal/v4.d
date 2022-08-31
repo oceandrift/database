@@ -470,6 +470,38 @@ struct Insert
     uint rowCount = 1;
 }
 
+Insert insert(Table table, const(string)[] columns)
+{
+    return Insert(table, columns);
+}
+
+Insert insert(Columns...)(Table table, Columns columns)
+{
+    auto data = new string[](columns.length);
+
+    static foreach (idx, col; columns)
+    {
+        static if (is(typeof(col) == string))
+            data[idx] = col;
+        else
+        {
+            enum colType = typeof(col).stringof;
+            static assert(
+                is(typeof(col) == string) || is(typeof(col) == SelectExpression),
+                "Column indentifiers must be strings, but type of parameter " ~ idx.to!string ~ " is `" ~ colType ~ '`'
+            );
+        }
+    }
+
+    return table.insert(data);
+}
+
+Insert times(Insert insert, const uint rows)
+{
+    insert.rowCount = rows;
+    return insert;
+}
+
 struct Delete
 {
 }
@@ -505,12 +537,30 @@ enum bool isQueryCompilerDialect(T) =
 (
     is(ReturnType!(() => T.build(Select())) == BuiltQuery)
     //&& is(ReturnType!(T.build(Update())) == BuiltQuery)
-    //&& is(ReturnType!(T.build(Insert())) == BuiltQuery)
+    && is(ReturnType!(() => T.build(Insert())) == BuiltQuery)
     //&& is(ReturnType!(T.build(Delete())) == BuiltQuery)
 );
 // dfmt on
 
 BuiltQuery build(QueryCompilerDialect)(Select q)
+        if (isQueryCompilerDialect!QueryCompilerDialect)
+{
+    return QueryCompilerDialect.build(q);
+}
+
+BuiltQuery build(QueryCompilerDialect)(Update q)
+        if (isQueryCompilerDialect!QueryCompilerDialect)
+{
+    return QueryCompilerDialect.build(q);
+}
+
+BuiltQuery build(QueryCompilerDialect)(Insert q)
+        if (isQueryCompilerDialect!QueryCompilerDialect)
+{
+    return QueryCompilerDialect.build(q);
+}
+
+BuiltQuery build(QueryCompilerDialect)(Delete q)
         if (isQueryCompilerDialect!QueryCompilerDialect)
 {
     return QueryCompilerDialect.build(q);

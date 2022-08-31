@@ -604,7 +604,48 @@ struct SQLite3Dialect
 
     static BuiltQuery build(const Insert query)
     {
-        assert(0);
+        auto sql = appender!string(`INSERT INTO "`);
+        sql ~= escapeIdentifier(query.table.name);
+
+        if (query.columns.length == 0)
+        {
+            sql ~= `" DEFAULT VALUES`;
+        }
+        else
+        {
+            sql ~= `" (`;
+
+            foreach (idx, column; query.columns)
+            {
+                if (idx > 0)
+                    sql ~= ", ";
+
+                sql ~= '"';
+                sql ~= escapeIdentifier(column);
+                sql ~= '"';
+            }
+
+            sql ~= ") VALUES";
+
+            for (uint n = 0; n < query.rowCount; ++n)
+            {
+                if (n > 0)
+                    sql ~= ",";
+
+                sql ~= " (";
+                if (query.columns.length > 0)
+                {
+                    sql ~= '?';
+
+                    if (query.columns.length > 1)
+                        for (size_t i = 1; i < query.columns.length; ++i)
+                            sql ~= ",?";
+                }
+                sql ~= ')';
+            }
+        }
+
+        return BuiltQuery(sql.data);
     }
 
     static BuiltQuery build(const Delete query)

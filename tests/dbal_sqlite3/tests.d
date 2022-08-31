@@ -375,4 +375,59 @@ public
         assert(bq.wherePlaceholders == 3);
         assert(bq.preSet.limit.isNull);
     }
+
+    unittest
+    {
+        enum Insert insertQ = table("mountain").insert("name", "location", "height");
+        assert(insertQ.rowCount == 1);
+
+        enum BuiltQuery bq = insertQ.build!SQLite3Dialect();
+        assert(bq.sql == `INSERT INTO "mountain" ("name", "location", "height") VALUES (?,?,?)`);
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("mountain")
+                .insert("name", "location", "height")
+                .times(2)
+                .build!SQLite3Dialect();
+
+        assert(
+            bq.sql == `INSERT INTO "mountain" ("name", "location", "height") VALUES (?,?,?), (?,?,?)`
+        );
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("mountain")
+                .insert("name", "location", "height")
+                .times(3)
+                .build!SQLite3Dialect();
+
+        assert(
+            bq.sql == `INSERT INTO "mountain" ("name", "location", "height") VALUES (?,?,?), (?,?,?), (?,?,?)`
+        );
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("mountain")
+                .insert("name")
+                .build!SQLite3Dialect();
+
+        assert(bq.sql == `INSERT INTO "mountain" ("name") VALUES (?)`);
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("mountain")
+                .insert()
+                .build!SQLite3Dialect();
+
+        assert(bq.sql == `INSERT INTO "mountain" DEFAULT VALUES`);
+    }
 }
