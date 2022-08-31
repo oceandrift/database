@@ -6,8 +6,9 @@
 
     ## User’s Guide
 
-    $()Well, almost: Different database implementations will stiff use different SQL dialects for their queries.
+    …or well, almost: Different database implementations will still use different SQL dialects for their queries.
 
+    […]
     returns a so-called $(I Prepared Statement) compiled from the provided SQL code.
 
 
@@ -101,8 +102,8 @@
     Most database access in $(I oceandrift) happens through Prepared Statements.
 
     Prepared Statements are compiled before execution
-    and allow the user of dynamic parameters (see: [Stattement.bind]).
-    This implies there’s no need for manual quoting or escaping with regard to dynamic parameter.s
+    and allow the use of dynamic parameters (see: [Stattement.bind]).
+    This implies there’s no need for manual quoting or escaping with regard to dynamic parameters.
     In such a prepared statement actual values are substituted by “placeholders” (usually in form of a question mark `?` character).
 
     $(TIP
@@ -112,7 +113,7 @@
     )
 
     Unlike in many other database libraries there’s no “vanilla” `.query` function.
-    This also means there’s no need for a SQL string escape function.
+    This also means there’s no need for a function to escape SQL string literals.
 
 
 
@@ -319,9 +320,12 @@ interface DatabaseDriver
          +/
         Statement prepare(string sql);
 
+        ///
         DBValue lastInsertID();
     }
 }
+
+alias DatabaseConnection = DatabaseDriver;
 
 /++
     Prepared Statement Handle
@@ -443,7 +447,7 @@ static assert(isInputRange!Statement);
     )
 
     $(WARNING
-        If called with less arguments than the Statement has parameters (excluding the statement itself, obviously),
+        If called with less arguments (excluding the statement itself, obviously) than the Statement has dynamic parameters,
         the rest of the parameters will retain their current values.
 
         This might lead to unexpected results. At least, it’s bad pratice.

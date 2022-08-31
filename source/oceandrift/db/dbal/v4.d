@@ -15,6 +15,8 @@
     // equivalent to writing
     ---
 
+    Codename: v4 “version 4”
+
     Special thanks to Steven “schveiguy” Schveighoffer.
  +/
 module oceandrift.db.dbal.v4;
@@ -26,8 +28,9 @@ import oceandrift.db.dbal.driver;
 
 @safe:
 
-// there’s no “impure” keyword :(
-
+/++
+    Prepares a built query using the specified database connection
+ +/
 Statement prepareBuiltQuery(DatabaseDriver db, BuiltQuery builtQuery)
 {
     Statement stmt = db.prepare(builtQuery.sql);
@@ -40,6 +43,8 @@ Statement prepareBuiltQuery(DatabaseDriver db, BuiltQuery builtQuery)
 
     return stmt;
 }
+
+// there’s no “impure” keyword :(
 
 pure:
 
@@ -64,29 +69,43 @@ enum ComparisonOperator : wchar
 // Logical operators
 enum
 {
-    ///
+    /// OR (logical operator, SQL)
     or = true,
-    ///
+    /// AND (logical operator, SQL)
     and = false,
 }
 
 enum
 {
+    /// NOT (SQL)
     not = false,
 }
 
+/++
+    Abstract SQL query token
+ +/
 struct Token
 {
+    /++
+        Meaning of the token
+     +/
     Type type;
+
+    /++
+        Additional data (optional)
+     +/
     Data data;
 
+    /++
+        Token types
+     +/
     enum Type : char
     {
-        invalid = '\xFF',
+        invalid = '\xFF', /// garbage, apparently something is broken should you encounter this type in an actual token
 
         column = 'c',
         placeholder = '?',
-        comparisonOperator = 'o',
+        comparisonOperator = 'o', /// a  [ComparisonOperator], for the actual operator see [Token.data.op]
 
         and = '&',
         or = '|',
@@ -97,6 +116,9 @@ struct Token
         rightParenthesis = ')',
     }
 
+    /++
+        Token data
+     +/
     union Data
     {
         string str;
@@ -115,23 +137,43 @@ struct Table
 /++
     Convenience function to create a table instance
  +/
-Table table(string name) nothrow @nogc
+inout(Table) table(inout string name) nothrow @nogc
 {
     return Table(name);
 }
 
+/++
+    Pre-set values provided during query building
+
+    They get automatically set when preparing a built query.
+ +/
 struct PreSet
 {
     DBValue[int] where;
     Nullable!int limit;
 }
 
+/++
+    Abstract WHERE clause
+ +/
 struct Where
 {
     Token[] tokens;
     int placeholders = 0; // number of placeholders in tokens
 }
 
+/++
+    SQL query abstraction
+
+    This is the base type for query building.
+
+    ---
+    Query myQuery = table("my_table").qb;
+
+    Select myQuerySelectAll= myQuery.where(/* … */).select("*");
+    BuiltQuery myQuerySelectAllBuilt = myQuerySelectAll.build!DatabaseDialect;
+    ---
+ +/
 struct Query
 {
     Table table;
@@ -142,6 +184,9 @@ private:
     bool _limit = false;
 }
 
+/++
+    Special query representation for use in query compilers
+ +/
 struct CompilerQuery
 {
 @safe pure nothrow @nogc:
@@ -155,9 +200,24 @@ struct CompilerQuery
 
     const
     {
+        /++
+            Table to query
+         +/
         Table table;
+
+        /++
+            WHERE clause
+         +/
         Where where;
-        PreSet preSet; // pre-set values for placeholders, already provided during query building
+
+        /++
+            Pre-set values for placeholders, already provided during query building
+         +/
+        PreSet preSet;
+
+        /++
+            Has a LIMIT clause
+         +/
         bool limit;
     }
 }
@@ -170,7 +230,7 @@ Query buildQuery(const Table table) nothrow @nogc
     return Query(table);
 }
 
-// ditto
+/// ditto
 Query buildQuery(const string table) nothrow @nogc
 {
     return Query(Table(table));
@@ -189,14 +249,15 @@ enum isComparisonOperator(T) = (
     Appends a check to the query's WHERE clause
 
     ---
-    // …FROM mountain WHERE height > ?
+    // …FROM mountain WHERE height > ?…
     Query qMountainsGreaterThan = table("mountain").qb.where("height", '>');
 
-    // …FROM mountain WHERE height > 8000
-    // Pre-sets the value `8000` for the  will get passed as a dynamic paramter
+    // …FROM mountain WHERE height > ?…
+    // Pre-sets the value `8000` for the dynamic paramter.
     Query qMountainsGreaterThan = table("mountain").qb.where("height", '>', 8000);
 
-
+    // …FROM people WHERE ago > ? AND age < ?…
+    // Pre-sets the values 60 and 100 for the dynamic paramters.
     Query qOver60butNot100yet = table("people").qb
         .where("age", '>', 60)
         .where("age", ComparisonOperator.lessThan, 100)
@@ -244,6 +305,20 @@ Query where(bool logicalJunction = and, TComparisonOperator, T)(
     return q.where!logicalJunction(column, op);
 }
 
+/++
+    Appends checks in parentheses to the query's WHERE clause
+    
+    ---
+    // …FROM mountain WHERE height > ? AND ( country = ? OR country = ? )…
+    Query qMountainsGreaterThanInUSorCA = table("mountain").qb
+        .where("height", '>')
+        .whereParentheses(q => q
+            .where   ("location", '=', "US")
+            .where!or("location", '=', "CA")
+        )
+    ;
+    ---
+ +/
 Query whereParentheses(bool logicalJunction = and)(Query q, Query delegate(scope Query q) @safe pure conditions)
 {
     enum Token tokenLogicalJunction =
