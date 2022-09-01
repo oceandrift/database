@@ -378,6 +378,44 @@ public
 
     unittest
     {
+        enum Update updateQ = table("mountain").qb.update("name", "location", "height");
+        enum BuiltQuery bq = updateQ.build!SQLite3Dialect();
+        assert(bq.sql == `UPDATE "mountain" SET "name" = ?, "location" = ?, "height" = ?`);
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq = table("mountain").qb
+                .where("height", ComparisonOperator.greaterThanOrEquals, 8000)
+                .update("name")
+                .build!SQLite3Dialect();
+        assert(bq.sql == `UPDATE "mountain" SET "name" = ? WHERE "height" >= ?`);
+        assert(bq.preSet.where[0].get!int == 8000);
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq = table("mountain").qb
+                .whereParentheses(
+                    q => q
+                        .where("location", '=', "US")
+                        .where!or("name", ComparisonOperator.notEquals)
+                )
+                .limit(4)
+                .update("category", "notes")
+                .build!SQLite3Dialect();
+
+        assert(
+            bq.sql
+                == `UPDATE "mountain" SET "category" = ?, "notes" = ? WHERE ( "location" = ? OR "name" <> ? ) LIMIT ?`
+        );
+        assert(bq.preSet.limit == 4);
+        assert(bq.preSet.where[0].get!string == "US");
+        assert(bq.wherePlaceholders == 2);
+    }
+
+    unittest
+    {
         enum Insert insertQ = table("mountain").insert("name", "location", "height");
         assert(insertQ.rowCount == 1);
 

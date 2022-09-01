@@ -460,8 +460,36 @@ Select select(Column...)(Query from, Column columns)
 struct Update
 {
     Query query;
-    DBValue[string] set;
+    const(string)[] columns;
 }
+
+Update update(Query query, const(string)[] columns)
+{
+    return Update(query, columns);
+}
+
+Update update(Columns...)(Query query, Columns columns)
+{
+    auto data = new string[](columns.length);
+
+    static foreach (idx, col; columns)
+    {
+        static if (is(typeof(col) == string))
+            data[idx] = col;
+        else
+        {
+            enum colType = typeof(col).stringof;
+            static assert(
+                is(typeof(col) == string) || is(typeof(col) == SelectExpression),
+                "Column indentifiers must be strings, but type of parameter " ~ idx.to!string ~ " is `" ~ colType ~ '`'
+            );
+        }
+    }
+
+    return query.update(data);
+}
+
+// -- Insert
 
 struct Insert
 {
@@ -536,7 +564,7 @@ enum bool isQueryCompilerDialect(T) =
     // dfmt off
 (
     is(ReturnType!(() => T.build(Select())) == BuiltQuery)
-    //&& is(ReturnType!(T.build(Update())) == BuiltQuery)
+    && is(ReturnType!(() => T.build(Update())) == BuiltQuery)
     && is(ReturnType!(() => T.build(Insert())) == BuiltQuery)
     //&& is(ReturnType!(T.build(Delete())) == BuiltQuery)
 );

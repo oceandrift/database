@@ -572,27 +572,21 @@ struct SQLite3Dialect
     }
 
     static BuiltQuery build(const Update update)
+    in (update.columns.length >= 1)
     {
         auto sql = appender!string("UPDATE");
         sql ~= ` "`;
         sql ~= update.query.table.name.escapeIdentifier();
-        sql ~= `"`;
+        sql ~= `" SET`;
 
-        bool first = true;
-        foreach (key; update.set.byKey)
+        foreach (idx, value; update.columns)
         {
-            if (!first)
-            {
+            if (idx > 0)
                 sql ~= ',';
-            }
-            else
-            {
-                first = false;
-            }
 
             sql ~= ` "`;
-            sql ~= key.escapeIdentifier;
-            sql ~= `"=?`;
+            sql ~= value.escapeIdentifier;
+            sql ~= `" = ?`;
         }
 
         const query = CompilerQuery(update.query);
