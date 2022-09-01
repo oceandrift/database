@@ -468,4 +468,24 @@ public
 
         assert(bq.sql == `INSERT INTO "mountain" DEFAULT VALUES`);
     }
+
+    @system unittest
+    {
+        bool assertion = false;
+        try
+        {
+            table("mountain")
+                .insert()
+                .times(3)
+                .build!SQLite3Dialect();
+        }
+        catch (Error)
+        {
+            assertion = true;
+        }
+        finally
+        {
+            assert(assertion);
+        }
+    }
 }

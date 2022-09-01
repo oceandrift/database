@@ -597,6 +597,10 @@ struct SQLite3Dialect
     }
 
     static BuiltQuery build(const Insert query)
+    in (
+        (query.columns.length > 1)
+        || (query.rowCount == 1)
+    )
     {
         auto sql = appender!string(`INSERT INTO "`);
         sql ~= escapeIdentifier(query.table.name);
