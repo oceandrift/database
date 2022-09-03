@@ -646,9 +646,18 @@ struct SQLite3Dialect
         return BuiltQuery(sql.data);
     }
 
-    static BuiltQuery build(const Delete query)
+    static BuiltQuery build(const Delete delete_)
     {
-        assert(0);
+        auto sql = appender!string(`DELETE FROM "`);
+        sql ~= delete_.query.table.name.escapeIdentifier();
+        sql ~= '"';
+
+        const query = CompilerQuery(delete_.query);
+
+        query.where.whereToSQL(sql);
+        query.limitToSQL(sql);
+
+        return BuiltQuery(sql.data, query.where.placeholders, query.preSet);
     }
 }
 

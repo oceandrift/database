@@ -530,9 +530,19 @@ Insert times(Insert insert, const uint rows)
     return insert;
 }
 
+// -- Delete
+
 struct Delete
 {
+    Query query;
 }
+
+Delete delete_(Query query)
+{
+    return Delete(query);
+}
+
+// -- Query building
 
 private struct _BuiltQuery
 {
@@ -563,10 +573,10 @@ public alias BuiltQuery = const(_BuiltQuery);
 enum bool isQueryCompilerDialect(T) =
     // dfmt off
 (
-    is(ReturnType!(() => T.build(Select())) == BuiltQuery)
+       is(ReturnType!(() => T.build(Select())) == BuiltQuery)
     && is(ReturnType!(() => T.build(Update())) == BuiltQuery)
     && is(ReturnType!(() => T.build(Insert())) == BuiltQuery)
-    //&& is(ReturnType!(T.build(Delete())) == BuiltQuery)
+    && is(ReturnType!(() => T.build(Delete())) == BuiltQuery)
 );
 // dfmt on
 

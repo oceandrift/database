@@ -488,4 +488,49 @@ public
             assert(assertion);
         }
     }
+
+    unittest
+    {
+        enum Delete deleteQ = table("mountain").qb.delete_();
+        enum BuiltQuery bq = deleteQ.build!SQLite3Dialect();
+        assert(bq.sql == `DELETE FROM "mountain"`);
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq = table("mountain").qb
+                .where("height", ComparisonOperator.isNull)
+                .delete_()
+                .build!SQLite3Dialect();
+        assert(bq.sql == `DELETE FROM "mountain" WHERE "height" IS NULL`);
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq = table("mountain").qb
+                .where("height", '<', 2000)
+                .where!or("height", ComparisonOperator.isNull)
+                .delete_()
+                .build!SQLite3Dialect();
+        assert(bq.sql == `DELETE FROM "mountain" WHERE "height" < ? OR "height" IS NULL`);
+        assert(bq.preSet.where[0].get!int == 2000);
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq = table("mountain").qb
+                .where("height", ComparisonOperator.isNotNull)
+                .whereParentheses(q => q
+                        .whereParentheses(q => q
+                            .where("location", '=')
+                            .where!or("location", ComparisonOperator.like)
+                        )
+                        .where("snow_top", '=')
+                )
+                .delete_()
+                .build!SQLite3Dialect();
+        assert(
+            bq.sql == `DELETE FROM "mountain" WHERE "height" IS NOT NULL AND ( ( "location" = ? OR "location" LIKE ? ) AND "snow_top" = ? )`
+        );
+    }
 }
