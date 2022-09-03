@@ -2,20 +2,117 @@
     SQL Query Builder
 
     Construct SQL queries from code.
+    Compile them to any specific SQL dialect later.
+
+    Works at compile-time thanks to $(B CTFE).
+    Best used with $(B UFCS).
 
     ---
-    table("misc").qb
-        .where("id", ComparisonOperator.greaterThan)
+    table("person").qb
+        .where("age", '>')
+        .select("*")
+    ;
+    // is equivalent to writing this query by hand
+    // --> SELECT * FROM "person" WHERE "age" > ?
+    ---
+
+    [table] creates a struct instance representing a table; this is the base for query building.
+
+    [qb] instantiates a complex query builder (for SELECT, UPDATE or DELETE queries – those that can have WHERE clauses etc.)
+
+    [where] appends a new condition to a query’s WHERE clause.
+    For disjunctions (“OR”) the first template parameter is set to `or (i.e. `where!or(…)`)
+    whereas `where!and` is the default.
+
+    Parentheses `()` can be inserted by calling [whereParentheses]:
+
+    ---
+    table("person").qb
+        .whereParentheses(q => q
             .where("age", '>')
-        .select(
-            "*",
-            count!distinct("name")
+            .where!or("height", '>')
+        )
+        .where("gender", '=')
+        .select("*")
+    ;
+    // --> SELECT * FROM "person" WHERE ( "age" > ? OR "height" > ? ) AND "gender" = ?
+    ---
+
+    Applying aggregate functions is super simple as well:
+    Helper functions [avg], [count], [max], [min], [sum] and [group_concat] got you covered!
+
+    `DISTINCT` can be applied by setting the first (and only) template parameter of said functions to `distinct` (or `true`),
+    i.e. `SELECT COUNT(DISTINCT "name")` becomes `.select(count!distinct("name"))`.
+
+    ---
+    table("person").qb              // FROM "person"
+        .where("age", '>')          // WHERE "age" > ?
+        .select(                    // SELECT
+            count!distinct("name")  //      COUNT(DISTINCT "name")
         )
     ;
-    // equivalent to writing
     ---
 
-    Codename: v4 “version 4”
+    Selecting multiple columns? No big deal either:
+
+    ---
+    table("person").qb.select(
+        "name",
+        "age"
+    );
+    // --> SELECT "name", "age" FROM "person"
+    ---
+
+    Writing `.select(*)` is tedious? How about omitting the parameter?
+    `"*"` is the default:`
+
+    ---
+    table("person").qb.select();
+    // --> SELECT * FROM "person"
+    ---
+
+    $(SIDEBAR
+        I am not sure whether it’s reasonable to have a default value here.
+        It might be better to just `static assert` instead.
+        So: Dear users, please let me know what you think!
+    )
+
+    Pre-set values during query building.
+    Those values are not inserted into the query string (Regular dynamic parameters are used as well.)
+    but will be bound to the prepared statement later.
+
+    ---
+    table("person").qb
+        .where("age", '>', 18)
+        .select("*")
+    // --> SELECT * FROM person WHERE "age" > ?
+    ---
+
+    Talking about “later”, it’s time to build an actual query from those abstractations…
+    This is done by calling [build] on the [Query].
+    The target dialect is specified through a template parameter.
+
+    ---
+    BuiltQuery q = table("person").qb
+        .where("age", '>')
+        .select("*")
+        .build!SQLite3Dialect()
+    ;
+    writeln(q.sql);
+    ---
+
+    $(NOTE
+        The primary goal of this query builder implementation is to power an ORM.
+        Nevertheless, it’s designed to be used by actual human programmers.
+
+        It doesn’t support every possible SQL feature.
+        The goal is to support the subset needed for ORM purposes.
+
+        I’d rather have limitations that affect versatility than to give up usability.
+        Feedback is always welcome!
+    )
+
+    Codename: v4 (“version 4”)
 
     Special thanks to Steven “schveiguy” Schveighoffer.
  +/
@@ -163,9 +260,11 @@ struct Where
 }
 
 /++
-    SQL query abstraction
+    SQL SELECT/UPDATE/DELETE query abstraction
 
-    This is the base type for query building.
+    This is the secondary base type for query building.
+
+    Not used with INSERT queries.
 
     ---
     Query myQuery = table("my_table").qb;
@@ -223,21 +322,21 @@ struct CompilerQuery
 }
 
 /++
-    Returns: a query builder for the specified table
+    Returns: a complex query builder for the specified table
  +/
-Query buildQuery(const Table table) nothrow @nogc
+Query complexQueryBuilder(const Table table) nothrow @nogc
 {
     return Query(table);
 }
 
 /// ditto
-Query buildQuery(const string table) nothrow @nogc
+Query complexQueryBuilder(const string table) nothrow @nogc
 {
     return Query(Table(table));
 }
 
 ///
-alias qb = buildQuery;
+alias qb = complexQueryBuilder;
 
 enum isComparisonOperator(T) = (
         is(T == ComparisonOperator)
