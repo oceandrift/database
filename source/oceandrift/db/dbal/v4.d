@@ -423,7 +423,7 @@ Query whereParentheses(bool logicalJunction = and)(Query q, Query delegate(scope
     enum Token tokenLogicalJunction =
         (logicalJunction == or) ? Token(Token.Type.or) : Token(Token.Type.and);
 
-    if (q._where.tokens.length > 0)
+    if ((q._where.tokens.length > 0) && (q._where.tokens[$ - 1].type != Token.Type.leftParenthesis))
         q._where.tokens ~= tokenLogicalJunction;
 
     q._where.tokens ~= Token(Token.Type.leftParenthesis);
@@ -533,25 +533,30 @@ struct Select
 
 Select select(Column...)(Query from, Column columns)
 {
-    auto data = new SelectExpression[](columns.length);
-
-    static foreach (idx, col; columns)
+    static if (columns.length == 0)
+        return Select(from, [SelectExpression("*")]);
+    else
     {
-        static if (is(typeof(col) == string))
-            data[idx] = SelectExpression(col);
-        else static if (is(typeof(col) == SelectExpression))
-            data[idx] = col;
-        else
-        {
-            enum colType = typeof(col).stringof;
-            static assert(
-                is(typeof(col) == string) || is(typeof(col) == SelectExpression),
-                "Column indentifiers must be strings, but type of parameter " ~ idx.to!string ~ " is `" ~ colType ~ '`'
-            );
-        }
-    }
+        auto data = new SelectExpression[](columns.length);
 
-    return Select(from, data);
+        static foreach (idx, col; columns)
+        {
+            static if (is(typeof(col) == string))
+                data[idx] = SelectExpression(col);
+            else static if (is(typeof(col) == SelectExpression))
+                data[idx] = col;
+            else
+            {
+                enum colType = typeof(col).stringof;
+                static assert(
+                    is(typeof(col) == string) || is(typeof(col) == SelectExpression),
+                    "Column indentifiers must be strings, but type of parameter " ~ idx.to!string ~ " is `" ~ colType ~ '`'
+                );
+            }
+        }
+
+        return Select(from, data);
+    }
 }
 
 // -- Update

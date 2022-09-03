@@ -356,6 +356,12 @@ public
 
     unittest
     {
+        enum BuiltQuery bq = table("x").qb.select().build!SQLite3Dialect;
+        assert(bq.sql == `SELECT * FROM "x"`);
+    }
+
+    unittest
+    {
         Query qMountainsGreaterThanInUSorCA = table("mountain").qb
             .where("height", '>')
             .whereParentheses(q => q
