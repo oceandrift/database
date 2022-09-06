@@ -376,10 +376,10 @@ public
         assert(
             bq.sql == `SELECT * FROM "mountain" WHERE "height" > ? AND ( "location" = ? OR "location" = ? )`
         );
-        assert(bq.preSet.where[1].get!string == "US");
-        assert(bq.preSet.where[2].get!string == "CA");
-        assert(bq.wherePlaceholders == 3);
-        assert(bq.preSet.limit.isNull);
+        assert(bq.preSets.where[1].get!string == "US");
+        assert(bq.preSets.where[2].get!string == "CA");
+        assert(bq.placeholders.where == 3);
+        assert(bq.preSets.limit.isNull);
     }
 
     unittest
@@ -396,7 +396,7 @@ public
                 .update("name")
                 .build!SQLite3Dialect();
         assert(bq.sql == `UPDATE "mountain" SET "name" = ? WHERE "height" >= ?`);
-        assert(bq.preSet.where[0].get!int == 8000);
+        assert(bq.preSets.where[0].get!int == 8000);
     }
 
     unittest
@@ -415,9 +415,9 @@ public
             bq.sql
                 == `UPDATE "mountain" SET "category" = ?, "notes" = ? WHERE ( "location" = ? OR "name" <> ? ) LIMIT ?`
         );
-        assert(bq.preSet.limit == 4);
-        assert(bq.preSet.where[0].get!string == "US");
-        assert(bq.wherePlaceholders == 2);
+        assert(bq.preSets.limit == 4);
+        assert(bq.preSets.where[0].get!string == "US");
+        assert(bq.placeholders.where == 2);
     }
 
     unittest
@@ -519,7 +519,7 @@ public
                 .delete_()
                 .build!SQLite3Dialect();
         assert(bq.sql == `DELETE FROM "mountain" WHERE "height" < ? OR "height" IS NULL`);
-        assert(bq.preSet.where[0].get!int == 2000);
+        assert(bq.preSets.where[0].get!int == 2000);
     }
 
     unittest
@@ -538,5 +538,31 @@ public
         assert(
             bq.sql == `DELETE FROM "mountain" WHERE "height" IS NOT NULL AND ( ( "location" = ? OR "location" LIKE ? ) AND "snow_top" = ? )`
         );
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("mountain").qb
+                .limit(true)
+                .delete_()
+                .build!SQLite3Dialect();
+        assert(bq.sql == `DELETE FROM "mountain" LIMIT ? OFFSET ?`);
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("point").qb
+                .limit(20, 40)
+                .where("x", '>', 10)
+                .where("y", ComparisonOperator.lessThanOrEquals, 0)
+                .select("x", "y")
+                .build!SQLite3Dialect();
+        assert(bq.sql == `SELECT "x", "y" FROM "point" WHERE "x" > ? AND "y" <= ? LIMIT ? OFFSET ?`);
+        assert(bq.preSets.where[0].get!int == 10);
+        assert(bq.preSets.where[1].get!int == 0);
+        assert(bq.preSets.limit == 20);
+        assert(bq.preSets.limitOffset == 40);
     }
 }

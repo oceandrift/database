@@ -132,11 +132,14 @@ Statement prepareBuiltQuery(DatabaseDriver db, BuiltQuery builtQuery)
 {
     Statement stmt = db.prepare(builtQuery.sql);
 
-    foreach (index, value; builtQuery.preSet.where)
+    foreach (index, value; builtQuery.preSets.where)
         stmt.bindDBValue(index + 1, value);
 
-    if (!builtQuery.preSet.limit.isNull)
-        stmt.bind(cast(int) builtQuery.wherePlaceholders + 1, builtQuery.preSet.limit.get);
+    if (!builtQuery.preSets.limit.isNull)
+        stmt.bind(cast(int) builtQuery.placeholders.where + 1, builtQuery.preSets.limit.get);
+
+    if (!builtQuery.preSets.limitOffset.isNull)
+        stmt.bind(cast(int) builtQuery.placeholders.where + 2, builtQuery.preSets.limitOffset.get);
 
     return stmt;
 }
@@ -158,9 +161,12 @@ enum ComparisonOperator : wchar
     greaterThanOrEquals = '≥',
 
     in_ = '∈',
-    like = '≙',
+    notIn = '∉',
+    like = '≈',
+    notLike = '≉',
     isNull = '0',
-    isNotNull = '1', //between = '∓',
+    isNotNull = '1', //
+    // between = '∓',
 }
 
 // Logical operators
@@ -240,23 +246,35 @@ inout(Table) table(inout string name) nothrow @nogc
 }
 
 /++
-    Pre-set values provided during query building
-
-    They get automatically set when preparing a built query.
- +/
-struct PreSet
-{
-    DBValue[int] where;
-    Nullable!int limit;
-}
-
-/++
     Abstract WHERE clause
  +/
 struct Where
 {
     Token[] tokens;
-    int placeholders = 0; // number of placeholders in tokens
+    DBValue[int] preSet; // Pre-set values provided during query building
+private:
+    int _placeholders = 0; // number of placeholders in tokens
+
+public @safe pure nothrow @nogc:
+    int placeholders() const
+    {
+        return _placeholders;
+    }
+}
+
+struct OrderingTerm
+{
+    string column;
+    bool desc = false;
+}
+
+struct Limit
+{
+    bool enabled = false;
+    Nullable!int preSet;
+
+    bool offsetEnabled = false;
+    Nullable!int offsetPreSet;
 }
 
 /++
@@ -279,8 +297,8 @@ struct Query
 
 private:
     Where _where;
-    PreSet _preSet; // pre-set values for placeholders, already provided during query building
-    bool _limit = false;
+    OrderingTerm[] _orderBy;
+    Limit _limit;
 }
 
 /++
@@ -293,7 +311,6 @@ struct CompilerQuery
     {
         this.table = q.table;
         this.where = q._where;
-        this.preSet = q._preSet;
         this.limit = q._limit;
     }
 
@@ -310,14 +327,9 @@ struct CompilerQuery
         Where where;
 
         /++
-            Pre-set values for placeholders, already provided during query building
+            LIMIT clause
          +/
-        PreSet preSet;
-
-        /++
-            Has a LIMIT clause
-         +/
-        bool limit;
+        Limit limit;
     }
 }
 
@@ -385,7 +397,7 @@ Query where(bool logicalJunction = and, TComparisonOperator)(
     if ((op != ComparisonOperator.isNull) && (op != ComparisonOperator.isNotNull))
     {
         q._where.tokens ~= Token(Token.Type.placeholder);
-        ++q._where.placeholders;
+        ++q._where._placeholders;
     }
 
     return q;
@@ -399,7 +411,7 @@ Query where(bool logicalJunction = and, TComparisonOperator, T)(
     T value
 ) @trusted // TODO: template constraint
 {
-    q._preSet.where[q._where.placeholders] = value;
+    q._where.preSet[q._where.placeholders] = value;
 
     return q.where!logicalJunction(column, op);
 }
@@ -454,18 +466,37 @@ template whereNot(bool logicalJunction = or, TComparisonOperator)
     }
 }
 
-Query limit(Query q)
+Query orderBy(Query q, string column, bool desc = false)
 {
-    q._limit = true;
-    q._preSet.limit.nullify;
+    q._orderBy ~= OrderingTerm(column, desc);
+    return q;
+}
+
+Query limit(Query q, bool withOffset = false)
+{
+    q._limit.enabled = true;
+    q._limit.preSet.nullify();
+
+    q._limit.offsetEnabled = withOffset;
+    q._limit.offsetPreSet.nullify();
 
     return q;
 }
 
 Query limit(Query q, int limit)
 {
-    q._limit = true;
-    q._preSet.limit = limit;
+    q._limit.enabled = true;
+    q._limit.preSet = limit;
+
+    return q;
+}
+
+Query limit(Query q, int limit, int offset)
+{
+    q._limit.enabled = true;
+    q._limit.preSet = limit;
+    q._limit.offsetEnabled = true;
+    q._limit.offsetPreSet = offset;
 
     return q;
 }
@@ -648,11 +679,27 @@ Delete delete_(Query query)
 
 // -- Query building
 
+private struct _PlaceholdersMeta
+{
+    size_t where;
+}
+
+public alias PlaceholdersMeta = const(_PlaceholdersMeta);
+
+private struct _PreSets
+{
+    DBValue[int] where;
+    Nullable!int limit;
+    Nullable!int limitOffset;
+}
+
+public alias PreSets = const(_PreSets);
+
 private struct _BuiltQuery
 {
     string sql;
-    size_t wherePlaceholders;
-    PreSet preSet;
+    PlaceholdersMeta placeholders;
+    PreSets preSets;
 }
 
 ///

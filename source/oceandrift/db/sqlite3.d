@@ -568,7 +568,11 @@ struct SQLite3Dialect
         query.where.whereToSQL(sql);
         query.limitToSQL(sql);
 
-        return BuiltQuery(sql.data, query.where.placeholders, query.preSet);
+        return BuiltQuery(
+            sql.data,
+            PlaceholdersMeta(query.where.placeholders),
+            PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
+        );
     }
 
     static BuiltQuery build(const Update update)
@@ -593,7 +597,11 @@ struct SQLite3Dialect
         query.where.whereToSQL(sql);
         query.limitToSQL(sql);
 
-        return BuiltQuery(sql.data, query.where.placeholders, query.preSet);
+        return BuiltQuery(
+            sql.data,
+            PlaceholdersMeta(query.where.placeholders),
+            PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
+        );
     }
 
     static BuiltQuery build(const Insert query)
@@ -657,7 +665,11 @@ struct SQLite3Dialect
         query.where.whereToSQL(sql);
         query.limitToSQL(sql);
 
-        return BuiltQuery(sql.data, query.where.placeholders, query.preSet);
+        return BuiltQuery(
+            sql.data,
+            PlaceholdersMeta(query.where.placeholders),
+            PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
+        );
     }
 }
 
@@ -716,10 +728,15 @@ pure:
 
     void limitToSQL(CompilerQuery q, ref Appender!string sql)
     {
-        if (!q.limit)
+        if (!q.limit.enabled)
             return;
 
         sql ~= " LIMIT ?";
+
+        if (!q.limit.offsetEnabled)
+            return;
+
+        sql ~= " OFFSET ?";
     }
 
     void toSQL(SelectExpression se, ref Appender!string sql)
@@ -767,7 +784,6 @@ pure:
 
         case equals:
             return " =";
-
         case notEquals:
             return " <>";
         case lessThan:
@@ -780,9 +796,12 @@ pure:
             return " >=";
         case in_:
             return " IN";
+        case notIn:
+            return " NOT IN";
         case like:
             return " LIKE";
-
+        case notLike:
+            return " NOT LIKE";
         case isNull:
             return " IS NULL";
         case isNotNull:
