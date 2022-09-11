@@ -5,12 +5,12 @@ import oceandrift.db.mariadb;
 
 @safe:
 
-DatabaseDriver getDB()
+MariaDBDatabaseDriver getDB()
 {
     return new MariaDBDatabaseDriver("localhost", "u_oceandrift", "p_oceandrift", null);
 }
 
-void dropRecreateUseDB(DatabaseDriver driver)
+void dropRecreateUseDB(MariaDBDatabaseDriver driver)
 {
     driver.execute("DROP DATABASE IF EXISTS `d_oceandrift`");
     driver.execute("CREATE DATABASE `d_oceandrift`");
@@ -19,7 +19,7 @@ void dropRecreateUseDB(DatabaseDriver driver)
 
 unittest
 {
-    DatabaseDriver driver = getDB();
+    MariaDBDatabaseDriver driver = getDB();
     assert(!driver.connected);
 
     driver.connect();
@@ -103,7 +103,7 @@ unittest
 
 unittest
 {
-    DatabaseDriver driver = getDB();
+    MariaDBDatabaseDriver driver = getDB();
     driver.connect();
     scope (exit)
         driver.close();
@@ -180,7 +180,7 @@ unittest
 
 unittest
 {
-    DatabaseDriver driver = getDB();
+    MariaDBDatabaseDriver driver = getDB();
     driver.connect();
     scope (exit)
         driver.close();
@@ -275,7 +275,7 @@ unittest
     import std.algorithm : canFind;
     import std.random : rndGen;
 
-    DatabaseDriver driver = getDB();
+    MariaDBDatabaseDriver driver = getDB();
     driver.connect();
     scope (exit)
         driver.close();
@@ -324,7 +324,7 @@ unittest
 
 unittest
 {
-    DatabaseDriver driver = getDB();
+    MariaDBDatabaseDriver driver = getDB();
     driver.connect();
     scope (exit)
         driver.close();
@@ -386,7 +386,7 @@ unittest
 
 unittest
 {
-    DatabaseDriver driver = getDB();
+    MariaDBDatabaseDriver driver = getDB();
     driver.connect();
     scope (exit)
         driver.close();

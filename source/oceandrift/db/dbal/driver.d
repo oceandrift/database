@@ -18,7 +18,7 @@
 
     ---
     // connection setup (driver-specific!)
-    DatabaseDriver db = new SQLite3DatabaseDriver();
+    DatabaseDriver db = new SQLite3();
 
     // disconnect on exit
     // alternative: you could also call .close() manually later instead
@@ -125,48 +125,51 @@
     )
 
     In order to add support for another database implementation/engine/whatsoever,
-    create a new driver class implementing the [DatabaseDriver] interface.
+    create a new driver struct or class matching the [DatabaseDriverSpec] interface.
+    Said interface only exists for documentation purposes.
+    There is no need to actually have your driver class implement (“inherit from”) [DatabaseDriverSpec].
+    It might become `private` in the future anyway.
 
     Connection setup should happen via its constructor,
     but do not establish a connection yet;
-    that’s what the [DatabaseDriver.connect] method is for.
+    that’s what the [DatabaseDriverSpec.connect] function/method is for.
 
-    Provide the current connection status via the [DatabaseDriver.connected] method.
+    Provide the current connection status via a [DatabaseDriverSpec.connected] function/method.
 
-    Clean connection shutdown happens through a call to [DatabaseDriver.close].
+    Clean connection shutdown happens through a call to [DatabaseDriverSpec.close].
     Disconnect the underlying database connection there.
     Beware a user may call [DatabaseDriver.connect] later of course.
 
     If the underlying database supports toggling “auto commit” mode,
-    this functionality should be provided via [DatabaseDriver.autoCommit(bool)].
+    this functionality should be provided via [DatabaseDriverSpec.autoCommit(bool)].
     There’s also a corresponding getter method.
 
     Manual transaction control is done through:
     $(LIST
-        * [DatabaseDriver.transactionStart]
+        * [DatabaseDriverSpec.transactionStart]
             – starts/begins a new transaction
 
             might commit a currently active transaction, just stick to your database’s active defaults;
             usually done by executing a SQL statement like `BEGIN TRANSACTION;`
-        * [DatabaseDriver.transactionCommit]
+        * [DatabaseDriverSpec.transactionCommit]
             – commit/save the current transaction
 
             usually done by executing a SQL statement like `COMMIT;`
-        * [DatabaseDriver.transactionRollback]
+        * [DatabaseDriverSpec.transactionRollback]
             – rollback/abort the current transaction
 
             usually done by executing a SQL statement like `ROLLBACK;`
     )
     For non-transactional databases you probably want to throw an Exception here.
 
-    [DatabaseDriver.execute] is a method that takes any SQL statement
+    [DatabaseDriverSpec.execute] is a method that takes any SQL statement
     that (usually) shouldn’t return any data (e.g. `CREATE TABLE …`)
     and immediatly executes it.
     Indicate errors by throwing an appropriate [Exception].
     In other database libraries such functions would often return the number of affected rows or similar,
     $(I oceandrift) currently defines this function as a `void` one; might be subject to change.
 
-    [DatabaseDriver.prepare]: compile the passed SQL statement and return a Prepared Statement.
+    [DatabaseDriverSpec.prepare]: compile the passed SQL statement and return a Prepared Statement.
     Preparation (compilation) errors should be indicated by throwing an appropriate [Exception];
     You must not return [null].
 
@@ -209,8 +212,9 @@
         * [Row] is just a struct that wraps an array of [DBValue]s.
             (This approach leads to better readable error messages than an plain alias.)
 
-    Similar to [DatabaseDriver] there’s a [Statement.close] method.
+    Similar to [DatabaseDriverSpec] there’s a [Statement.close] method.
     Finalize/close the underlying prepared statement and do any necessary cleanup.
+    If possible, code this with the assumption that your users could forget to call it – because they eventually will.
 
     $(NOTE
         Special thanks to Paul “Snarwin” Backus.
@@ -226,14 +230,18 @@ public import std.datetime : Date, DateTime, TimeOfDay;
 @safe:
 
 /++
-    Database Driver Handle
+    Database Driver API specification
 
-    Provides a unified interface to the underlying database client implementation.
+    Specifies a unified interface for database client implementations.
 
-    See_Also:
-        Check out [oceandrift.db.dbal.driver] for usage details
+    There is no reason to use this.
+    Exists for documentation purposes only.
+
+    Feel free to implement drivers using structs.
+
+    oceandrift is designed to work with anything that corresponds to the API shown here.
  +/
-interface DatabaseDriver
+interface DatabaseDriverSpec
 {
     @safe
     {
@@ -325,7 +333,8 @@ interface DatabaseDriver
     }
 }
 
-alias DatabaseConnection = DatabaseDriver;
+/// TODO
+enum bool isDatabaseDriver(T) = true;
 
 /++
     Prepared Statement Handle
@@ -348,7 +357,7 @@ interface Statement
         $(ASIDE
             Yes, indexes start with 1 in SQL,
             but in oceandrift they don’t.
-                        
+
             I’ve not only considered implementing them 1-indexed
             (like PHP’s PDO or the SQLite3 C library does),
             I even implemented them that way.

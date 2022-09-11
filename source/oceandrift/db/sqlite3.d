@@ -2,7 +2,7 @@
     SQLite3 Database Driver
 
     ---
-    DatabaseDriver db = new SQLite3DatabaseDriver("my-database-file.sqlite3");
+    DatabaseDriver db = new SQLite3("my-database-file.sqlite3");
 
     db.connect(); // establish database connection
     scope(exit) db.close(); // scope guard, to close the database connection when exiting the current scope
@@ -183,11 +183,11 @@ enum ResultCode
 }
 
 /++
-    SQLite3 database driver oceandrift
+    SQLite3 oceandrift database driver
 
-    Built upon sqlite3 C library
+    Built upon the sqlite3 C library
  +/
-final class SQLite3DatabaseDriver : DatabaseDriver
+final class SQLite3 : DatabaseDriverSpec
 {
 @safe:
     private
@@ -279,6 +279,133 @@ final class SQLite3DatabaseDriver : DatabaseDriver
         sqlite3* getConnection()
         {
             return _handle;
+        }
+    }
+
+    public pure  // Query Compiler
+    {
+        static BuiltQuery build(const Select select)
+        {
+            auto sql = appender!string("SELECT");
+
+            foreach (idx, se; select.columns)
+            {
+                if (idx > 0)
+                    sql ~= ',';
+
+                se.toSQL(sql);
+            }
+
+            sql ~= ` FROM "`;
+            sql ~= select.query.table.name.escapeIdentifier();
+            sql ~= '"';
+
+            const query = CompilerQuery(select.query);
+            query.where.whereToSQL(sql);
+            query.limitToSQL(sql);
+
+            return BuiltQuery(
+                sql.data,
+                PlaceholdersMeta(query.where.placeholders),
+                PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
+            );
+        }
+
+        static BuiltQuery build(const Update update)
+        in (update.columns.length >= 1)
+        {
+            auto sql = appender!string("UPDATE");
+            sql ~= ` "`;
+            sql ~= update.query.table.name.escapeIdentifier();
+            sql ~= `" SET`;
+
+            foreach (idx, value; update.columns)
+            {
+                if (idx > 0)
+                    sql ~= ',';
+
+                sql ~= ` "`;
+                sql ~= value.escapeIdentifier;
+                sql ~= `" = ?`;
+            }
+
+            const query = CompilerQuery(update.query);
+            query.where.whereToSQL(sql);
+            query.limitToSQL(sql);
+
+            return BuiltQuery(
+                sql.data,
+                PlaceholdersMeta(query.where.placeholders),
+                PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
+            );
+        }
+
+        static BuiltQuery build(const Insert query)
+        in (
+            (query.columns.length > 1)
+            || (query.rowCount == 1)
+        )
+        {
+            auto sql = appender!string(`INSERT INTO "`);
+            sql ~= escapeIdentifier(query.table.name);
+
+            if (query.columns.length == 0)
+            {
+                sql ~= `" DEFAULT VALUES`;
+            }
+            else
+            {
+                sql ~= `" (`;
+
+                foreach (idx, column; query.columns)
+                {
+                    if (idx > 0)
+                        sql ~= ", ";
+
+                    sql ~= '"';
+                    sql ~= escapeIdentifier(column);
+                    sql ~= '"';
+                }
+
+                sql ~= ") VALUES";
+
+                for (uint n = 0; n < query.rowCount; ++n)
+                {
+                    if (n > 0)
+                        sql ~= ",";
+
+                    sql ~= " (";
+                    if (query.columns.length > 0)
+                    {
+                        sql ~= '?';
+
+                        if (query.columns.length > 1)
+                            for (size_t i = 1; i < query.columns.length; ++i)
+                                sql ~= ",?";
+                    }
+                    sql ~= ')';
+                }
+            }
+
+            return BuiltQuery(sql.data);
+        }
+
+        static BuiltQuery build(const Delete delete_)
+        {
+            auto sql = appender!string(`DELETE FROM "`);
+            sql ~= delete_.query.table.name.escapeIdentifier();
+            sql ~= '"';
+
+            const query = CompilerQuery(delete_.query);
+
+            query.where.whereToSQL(sql);
+            query.limitToSQL(sql);
+
+            return BuiltQuery(
+                sql.data,
+                PlaceholdersMeta(query.where.placeholders),
+                PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
+            );
         }
     }
 
@@ -544,136 +671,7 @@ final class SQLite3Statement : Statement
     }
 }
 
-struct SQLite3Dialect
-{
-@safe pure:
-
-    static BuiltQuery build(const Select select)
-    {
-        auto sql = appender!string("SELECT");
-
-        foreach (idx, se; select.columns)
-        {
-            if (idx > 0)
-                sql ~= ',';
-
-            se.toSQL(sql);
-        }
-
-        sql ~= ` FROM "`;
-        sql ~= select.query.table.name.escapeIdentifier();
-        sql ~= '"';
-
-        const query = CompilerQuery(select.query);
-        query.where.whereToSQL(sql);
-        query.limitToSQL(sql);
-
-        return BuiltQuery(
-            sql.data,
-            PlaceholdersMeta(query.where.placeholders),
-            PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
-        );
-    }
-
-    static BuiltQuery build(const Update update)
-    in (update.columns.length >= 1)
-    {
-        auto sql = appender!string("UPDATE");
-        sql ~= ` "`;
-        sql ~= update.query.table.name.escapeIdentifier();
-        sql ~= `" SET`;
-
-        foreach (idx, value; update.columns)
-        {
-            if (idx > 0)
-                sql ~= ',';
-
-            sql ~= ` "`;
-            sql ~= value.escapeIdentifier;
-            sql ~= `" = ?`;
-        }
-
-        const query = CompilerQuery(update.query);
-        query.where.whereToSQL(sql);
-        query.limitToSQL(sql);
-
-        return BuiltQuery(
-            sql.data,
-            PlaceholdersMeta(query.where.placeholders),
-            PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
-        );
-    }
-
-    static BuiltQuery build(const Insert query)
-    in (
-        (query.columns.length > 1)
-        || (query.rowCount == 1)
-    )
-    {
-        auto sql = appender!string(`INSERT INTO "`);
-        sql ~= escapeIdentifier(query.table.name);
-
-        if (query.columns.length == 0)
-        {
-            sql ~= `" DEFAULT VALUES`;
-        }
-        else
-        {
-            sql ~= `" (`;
-
-            foreach (idx, column; query.columns)
-            {
-                if (idx > 0)
-                    sql ~= ", ";
-
-                sql ~= '"';
-                sql ~= escapeIdentifier(column);
-                sql ~= '"';
-            }
-
-            sql ~= ") VALUES";
-
-            for (uint n = 0; n < query.rowCount; ++n)
-            {
-                if (n > 0)
-                    sql ~= ",";
-
-                sql ~= " (";
-                if (query.columns.length > 0)
-                {
-                    sql ~= '?';
-
-                    if (query.columns.length > 1)
-                        for (size_t i = 1; i < query.columns.length; ++i)
-                            sql ~= ",?";
-                }
-                sql ~= ')';
-            }
-        }
-
-        return BuiltQuery(sql.data);
-    }
-
-    static BuiltQuery build(const Delete delete_)
-    {
-        auto sql = appender!string(`DELETE FROM "`);
-        sql ~= delete_.query.table.name.escapeIdentifier();
-        sql ~= '"';
-
-        const query = CompilerQuery(delete_.query);
-
-        query.where.whereToSQL(sql);
-        query.limitToSQL(sql);
-
-        return BuiltQuery(
-            sql.data,
-            PlaceholdersMeta(query.where.placeholders),
-            PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
-        );
-    }
-}
-
-static assert(isQueryCompilerDialect!SQLite3Dialect);
+static assert(isQueryCompiler!SQLite3);
 
 private
 {

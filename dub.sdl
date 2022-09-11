@@ -14,7 +14,7 @@ subPackage {
     name "dbal"
     description "DataBase Abstraction Layer"
     targetPath "bin"
-    excludedSourceFiles "source/oceandrift/db/mariadb.d" "source/oceandrift/db/orm.d" "source/oceandrift/db/sqlite3.d" // DCD does not properly support “sourceFiles”
+    excludedSourceFiles "source/oceandrift/db/package.d" "source/oceandrift/db/mariadb.d" "source/oceandrift/db/orm.d" "source/oceandrift/db/sqlite3.d" // DCD does not properly support “sourceFiles”
 }
 
 dependency ":mariadb" version="*"
@@ -22,7 +22,7 @@ subPackage {
     name "mariadb"
     description "MariaDB driver for the oceandrift-database DBAL"
     targetPath "bin"
-    excludedSourceFiles "source/oceandrift/db/dbal/*" "source/oceandrift/db/orm.d" "source/oceandrift/db/sqlite3.d"
+    excludedSourceFiles "source/oceandrift/db/package.d" "source/oceandrift/db/dbal/*" "source/oceandrift/db/orm.d" "source/oceandrift/db/sqlite3.d"
     dependency "oceandrift-database:dbal" version="*"
     dependency "mysql-native" version="~>3.2.0"
 }
@@ -33,7 +33,7 @@ subPackage {
     description "SQLite3 driver for the oceandrift-database DBAL"
     targetPath "bin"
     libs "sqlite3" platform="posix"
-    excludedSourceFiles "source/oceandrift/db/dbal/*" "source/oceandrift/db/mariadb.d" "source/oceandrift/db/orm.d"
+    excludedSourceFiles "source/oceandrift/db/package.d" "source/oceandrift/db/dbal/*" "source/oceandrift/db/mariadb.d" "source/oceandrift/db/orm.d"
     dependency "oceandrift-database:dbal" version="*"
 }
 
@@ -43,5 +43,5 @@ subPackage {
     name "orm"
     description "Object-Relation Mapper"
     targetPath "bin"
-    excludedSourceFiles "source/oceandrift/db/dbal/*" "source/oceandrift/db/mariadb.d" "source/oceandrift/db/sqlite3.d"
+    excludedSourceFiles "source/oceandrift/db/package.d" "source/oceandrift/db/dbal/*" "source/oceandrift/db/mariadb.d" "source/oceandrift/db/sqlite3.d"
 }

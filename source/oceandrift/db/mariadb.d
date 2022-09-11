@@ -40,7 +40,7 @@ alias MySQLRow = mysql.safe.Row;
     See_Also:
         https://code.dlang.org/packages/mysql-native
  +/
-final class MariaDBDatabaseDriver : DatabaseDriver
+final class MariaDBDatabaseDriver : DatabaseDriverSpec
 {
 @safe:
 

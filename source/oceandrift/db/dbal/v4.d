@@ -96,7 +96,7 @@
     BuiltQuery q = table("person").qb
         .where("age", '>')
         .select("*")
-        .build!SQLite3Dialect()
+        .build!SQLite3()
     ;
     writeln(q.sql);
     ---
@@ -118,6 +118,7 @@
  +/
 module oceandrift.db.dbal.v4;
 
+import std.conv : to;
 import std.traits : ReturnType;
 import std.typecons : Nullable;
 
@@ -128,7 +129,7 @@ import oceandrift.db.dbal.driver;
 /++
     Prepares a built query using the specified database connection
  +/
-Statement prepareBuiltQuery(DatabaseDriver db, BuiltQuery builtQuery)
+Statement prepareBuiltQuery(DatabaseDriver)(DatabaseDriver db, BuiltQuery builtQuery)
 {
     Statement stmt = db.prepare(builtQuery.sql);
 
@@ -208,7 +209,7 @@ struct Token
 
         column = 'c',
         placeholder = '?',
-        comparisonOperator = 'o', /// a  [ComparisonOperator], for the actual operator see [Token.data.op]
+        comparisonOperator = 'o', /// a [ComparisonOperator], for the actual operator see [Token.data.op]
 
         and = '&',
         or = '|',
@@ -288,7 +289,7 @@ struct Limit
     Query myQuery = table("my_table").qb;
 
     Select myQuerySelectAll= myQuery.where(/* … */).select("*");
-    BuiltQuery myQuerySelectAllBuilt = myQuerySelectAll.build!DatabaseDialect;
+    BuiltQuery myQuerySelectAllBuilt = myQuerySelectAll.build!Database;
     ---
  +/
 struct Query
@@ -357,7 +358,7 @@ enum isComparisonOperator(T) = (
     );
 
 /++
-    Appends a check to the query's WHERE clause
+    Appends a condition to the query's WHERE clause
 
     ---
     // …FROM mountain WHERE height > ?…
@@ -581,7 +582,7 @@ Select select(Column...)(Query from, Column columns)
                 enum colType = typeof(col).stringof;
                 static assert(
                     is(typeof(col) == string) || is(typeof(col) == SelectExpression),
-                    "Column indentifiers must be strings, but type of parameter " ~ idx.to!string ~ " is `" ~ colType ~ '`'
+                    "Column identifiers must be strings, but type of parameter " ~ idx.to!string ~ " is `" ~ colType ~ '`'
                 );
             }
         }
@@ -616,7 +617,7 @@ Update update(Columns...)(Query query, Columns columns)
             enum colType = typeof(col).stringof;
             static assert(
                 is(typeof(col) == string) || is(typeof(col) == SelectExpression),
-                "Column indentifiers must be strings, but type of parameter " ~ idx.to!string ~ " is `" ~ colType ~ '`'
+                "Column identifiers must be strings, but type of parameter " ~ idx.to!string ~ " is `" ~ colType ~ '`'
             );
         }
     }
@@ -651,7 +652,7 @@ Insert insert(Columns...)(Table table, Columns columns)
             enum colType = typeof(col).stringof;
             static assert(
                 is(typeof(col) == string) || is(typeof(col) == SelectExpression),
-                "Column indentifiers must be strings, but type of parameter " ~ idx.to!string ~ " is `" ~ colType ~ '`'
+                "Column identifiers must be strings, but type of parameter " ~ idx.to!string ~ " is `" ~ colType ~ '`'
             );
         }
     }
@@ -709,7 +710,7 @@ public alias BuiltQuery = const(_BuiltQuery);
     Determines whether `T` is a valid SQL “Query Compiler” implementation
     
     ---
-    struct MyDialect
+    struct MyDatabaseDriver
     {
     @safe pure:
         static BuiltQuery build(const Select selectQuery);
@@ -718,10 +719,10 @@ public alias BuiltQuery = const(_BuiltQuery);
         static BuiltQuery build(const Delete deleteQuery);
     }
 
-    static assert(isQueryCompilerDialect!MyDialect);
+    static assert(isQueryCompiler!MyDatabaseDriver);
     ---
  +/
-enum bool isQueryCompilerDialect(T) =
+enum bool isQueryCompiler(T) =
     // dfmt off
 (
        is(ReturnType!(() => T.build(Select())) == BuiltQuery)
@@ -731,26 +732,26 @@ enum bool isQueryCompilerDialect(T) =
 );
 // dfmt on
 
-BuiltQuery build(QueryCompilerDialect)(Select q)
-        if (isQueryCompilerDialect!QueryCompilerDialect)
+pragma(inline, true)
+BuiltQuery build(QueryCompiler)(Select q) if (isQueryCompiler!QueryCompiler)
 {
-    return QueryCompilerDialect.build(q);
+    return QueryCompiler.build(q);
 }
 
-BuiltQuery build(QueryCompilerDialect)(Update q)
-        if (isQueryCompilerDialect!QueryCompilerDialect)
+pragma(inline, true)
+BuiltQuery build(QueryCompiler)(Update q) if (isQueryCompiler!QueryCompiler)
 {
-    return QueryCompilerDialect.build(q);
+    return QueryCompiler.build(q);
 }
 
-BuiltQuery build(QueryCompilerDialect)(Insert q)
-        if (isQueryCompilerDialect!QueryCompilerDialect)
+pragma(inline, true)
+BuiltQuery build(QueryCompiler)(Insert q) if (isQueryCompiler!QueryCompiler)
 {
-    return QueryCompilerDialect.build(q);
+    return QueryCompiler.build(q);
 }
 
-BuiltQuery build(QueryCompilerDialect)(Delete q)
-        if (isQueryCompilerDialect!QueryCompilerDialect)
+pragma(inline, true)
+BuiltQuery build(QueryCompiler)(Delete q) if (isQueryCompiler!QueryCompiler)
 {
-    return QueryCompilerDialect.build(q);
+    return QueryCompiler.build(q);
 }

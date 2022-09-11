@@ -20,7 +20,7 @@ unittest
 {
     try
     {
-        DatabaseDriver driver = new SQLite3DatabaseDriver(":memory:", OpenMode.create);
+        auto driver = new SQLite3(":memory:", OpenMode.create);
         assert(!driver.connected);
 
         driver.connect();
@@ -47,7 +47,7 @@ unittest
 {
     try
     {
-        DatabaseDriver driver = new SQLite3DatabaseDriver(":memory:", OpenMode.create);
+        auto driver = new SQLite3(":memory:", OpenMode.create);
         assert(!driver.connected);
 
         driver.connect();
@@ -129,7 +129,7 @@ unittest
 {
     try
     {
-        DatabaseDriver driver = new SQLite3DatabaseDriver(":memory:", OpenMode.create);
+        auto driver = new SQLite3(":memory:", OpenMode.create);
         driver.connect();
         scope (exit)
             driver.close();
@@ -229,7 +229,7 @@ unittest
 
     try
     {
-        DatabaseDriver driver = new SQLite3DatabaseDriver(":memory:", OpenMode.create);
+        auto driver = new SQLite3(":memory:", OpenMode.create);
         driver.connect();
         scope (exit)
             driver.close();
@@ -286,7 +286,7 @@ public
     {
         try
         {
-            DatabaseDriver driver = new SQLite3DatabaseDriver(":memory:");
+            auto driver = new SQLite3(":memory:");
 
             driver.connect();
             scope (exit)
@@ -305,7 +305,7 @@ public
                     .where("age", '>')
                     .select("*", count!distinct("name")); //.where("id", '>').where("name", like);
 
-            enum BuiltQuery bs = SQLite3Dialect.build(a);
+            enum BuiltQuery bs = SQLite3.build(a);
             assert(
                 bs.sql == `SELECT *, count(DISTINCT "name") FROM "misc" WHERE "id" > ? AND "age" > ?`
             );
@@ -324,7 +324,7 @@ public
                             .where("age", '>')
                             .where!or("age", '<')
                     )
-                    .select("*").build!SQLite3Dialect;
+                    .select("*").build!SQLite3;
             assert(b.sql == `SELECT * FROM "misc" WHERE "id" < ? AND ( "age" > ? OR "age" < ? )`);
 
             /*auto c = table("misc").qb
@@ -339,7 +339,7 @@ public
                     .where("age", '>', 0)
                     .limit(12);
             enum e = e1
-                    .select("id").build!SQLite3Dialect;
+                    .select("id").build!SQLite3;
 
             Statement eStmt = driver.prepareBuiltQuery(e);
             eStmt.execute();
@@ -356,7 +356,7 @@ public
 
     unittest
     {
-        enum BuiltQuery bq = table("x").qb.select().build!SQLite3Dialect;
+        enum BuiltQuery bq = table("x").qb.select().build!SQLite3;
         assert(bq.sql == `SELECT * FROM "x"`);
     }
 
@@ -371,7 +371,7 @@ public
 
         Select selectQ = qMountainsGreaterThanInUSorCA.select("*");
 
-        BuiltQuery bq = selectQ.build!SQLite3Dialect();
+        BuiltQuery bq = selectQ.build!SQLite3();
 
         assert(
             bq.sql == `SELECT * FROM "mountain" WHERE "height" > ? AND ( "location" = ? OR "location" = ? )`
@@ -385,7 +385,7 @@ public
     unittest
     {
         enum Update updateQ = table("mountain").qb.update("name", "location", "height");
-        enum BuiltQuery bq = updateQ.build!SQLite3Dialect();
+        enum BuiltQuery bq = updateQ.build!SQLite3();
         assert(bq.sql == `UPDATE "mountain" SET "name" = ?, "location" = ?, "height" = ?`);
     }
 
@@ -394,7 +394,7 @@ public
         enum BuiltQuery bq = table("mountain").qb
                 .where("height", ComparisonOperator.greaterThanOrEquals, 8000)
                 .update("name")
-                .build!SQLite3Dialect();
+                .build!SQLite3();
         assert(bq.sql == `UPDATE "mountain" SET "name" = ? WHERE "height" >= ?`);
         assert(bq.preSets.where[0].get!int == 8000);
     }
@@ -409,7 +409,7 @@ public
                 )
                 .limit(4)
                 .update("category", "notes")
-                .build!SQLite3Dialect();
+                .build!SQLite3();
 
         assert(
             bq.sql
@@ -425,7 +425,7 @@ public
         enum Insert insertQ = table("mountain").insert("name", "location", "height");
         assert(insertQ.rowCount == 1);
 
-        enum BuiltQuery bq = insertQ.build!SQLite3Dialect();
+        enum BuiltQuery bq = insertQ.build!SQLite3();
         assert(bq.sql == `INSERT INTO "mountain" ("name", "location", "height") VALUES (?,?,?)`);
     }
 
@@ -435,7 +435,7 @@ public
             table("mountain")
                 .insert("name", "location", "height")
                 .times(2)
-                .build!SQLite3Dialect();
+                .build!SQLite3();
 
         assert(
             bq.sql == `INSERT INTO "mountain" ("name", "location", "height") VALUES (?,?,?), (?,?,?)`
@@ -448,7 +448,7 @@ public
             table("mountain")
                 .insert("name", "location", "height")
                 .times(3)
-                .build!SQLite3Dialect();
+                .build!SQLite3();
 
         assert(
             bq.sql == `INSERT INTO "mountain" ("name", "location", "height") VALUES (?,?,?), (?,?,?), (?,?,?)`
@@ -460,7 +460,7 @@ public
         enum BuiltQuery bq =
             table("mountain")
                 .insert("name")
-                .build!SQLite3Dialect();
+                .build!SQLite3();
 
         assert(bq.sql == `INSERT INTO "mountain" ("name") VALUES (?)`);
     }
@@ -470,7 +470,7 @@ public
         enum BuiltQuery bq =
             table("mountain")
                 .insert()
-                .build!SQLite3Dialect();
+                .build!SQLite3();
 
         assert(bq.sql == `INSERT INTO "mountain" DEFAULT VALUES`);
     }
@@ -483,7 +483,7 @@ public
             table("mountain")
                 .insert()
                 .times(3)
-                .build!SQLite3Dialect();
+                .build!SQLite3();
         }
         catch (Error)
         {
@@ -498,7 +498,7 @@ public
     unittest
     {
         enum Delete deleteQ = table("mountain").qb.delete_();
-        enum BuiltQuery bq = deleteQ.build!SQLite3Dialect();
+        enum BuiltQuery bq = deleteQ.build!SQLite3();
         assert(bq.sql == `DELETE FROM "mountain"`);
     }
 
@@ -507,7 +507,7 @@ public
         enum BuiltQuery bq = table("mountain").qb
                 .where("height", ComparisonOperator.isNull)
                 .delete_()
-                .build!SQLite3Dialect();
+                .build!SQLite3();
         assert(bq.sql == `DELETE FROM "mountain" WHERE "height" IS NULL`);
     }
 
@@ -517,7 +517,7 @@ public
                 .where("height", '<', 2000)
                 .where!or("height", ComparisonOperator.isNull)
                 .delete_()
-                .build!SQLite3Dialect();
+                .build!SQLite3();
         assert(bq.sql == `DELETE FROM "mountain" WHERE "height" < ? OR "height" IS NULL`);
         assert(bq.preSets.where[0].get!int == 2000);
     }
@@ -534,7 +534,7 @@ public
                         .where("snow_top", '=')
                 )
                 .delete_()
-                .build!SQLite3Dialect();
+                .build!SQLite3();
         assert(
             bq.sql == `DELETE FROM "mountain" WHERE "height" IS NOT NULL AND ( ( "location" = ? OR "location" LIKE ? ) AND "snow_top" = ? )`
         );
@@ -546,7 +546,7 @@ public
             table("mountain").qb
                 .limit(true)
                 .delete_()
-                .build!SQLite3Dialect();
+                .build!SQLite3();
         assert(bq.sql == `DELETE FROM "mountain" LIMIT ? OFFSET ?`);
     }
 
@@ -558,7 +558,7 @@ public
                 .where("x", '>', 10)
                 .where("y", ComparisonOperator.lessThanOrEquals, 0)
                 .select("x", "y")
-                .build!SQLite3Dialect();
+                .build!SQLite3();
         assert(bq.sql == `SELECT "x", "y" FROM "point" WHERE "x" > ? AND "y" <= ? LIMIT ? OFFSET ?`);
         assert(bq.preSets.where[0].get!int == 10);
         assert(bq.preSets.where[1].get!int == 0);
