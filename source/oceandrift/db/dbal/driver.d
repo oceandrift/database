@@ -545,6 +545,63 @@ bool isNull(DBValue value)
     }
 }
 
+T getAs(T)(DBValue value) pure
+{
+    static if (is(T == bool))
+        return value.tryMatch!(
+            (ref const bool v) => v,
+            (ref const byte v) => cast(bool) v,
+            (ref const ubyte v) => cast(bool) v,
+            (ref const short v) => cast(bool) v,
+            (ref const ushort v) => cast(bool) v,
+            (ref const int v) => cast(bool) v,
+            (ref const uint v) => cast(bool) v,
+            (ref const long v) => cast(bool) v,
+            (ref const ulong v) => cast(bool) v,
+        );
+
+    static if (is(T == ubyte))
+        return value.tryMatch!(
+            (ref const bool v) => cast(ubyte) v,
+            (ref const byte v) => cast(ubyte) v,
+            (ref const ubyte v) => v,
+            (ref const short v) => cast(ubyte) v,
+            (ref const ushort v) => cast(ubyte) v,
+            (ref const int v) => cast(ubyte) v,
+            (ref const uint v) => cast(ubyte) v,
+            (ref const long v) => cast(ubyte) v,
+            (ref const ulong v) => cast(ubyte) v,
+        );
+
+    else static if (is(T == long))
+        return value.tryMatch!(
+            (ref const bool v) => cast(long) v,
+            (ref const byte v) => cast(long) v,
+            (ref const ubyte v) => cast(long) v,
+            (ref const short v) => cast(long) v,
+            (ref const ushort v) => cast(long) v,
+            (ref const int v) => cast(long) v,
+            (ref const uint v) => cast(long) v,
+            (ref const long v) => v,
+            (ref const ulong v) => cast(long) v,
+        );
+
+    else static if (is(T == ulong))
+        return value.tryMatch!(
+            (ref const bool v) => long(v),
+            (ref const ulong v) => v,
+            (ref const long v) => ulong(v),
+        );
+
+    else static if (is(T == string))
+        return value.tryMatch!(
+            (ref const string v) => v,
+            (ref const const(ubyte)[] v) => cast(string) v.idup,
+        );
+    else
+        static assert(0, "No getAs!T() routine for T == " ~ T.stringof);
+}
+
 /++
     Database Result Row
  +/
