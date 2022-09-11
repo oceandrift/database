@@ -133,13 +133,13 @@ Statement prepareBuiltQuery(DatabaseDriver db, BuiltQuery builtQuery)
     Statement stmt = db.prepare(builtQuery.sql);
 
     foreach (index, value; builtQuery.preSets.where)
-        stmt.bindDBValue(index + 1, value);
+        stmt.bindDBValue(index, value);
 
     if (!builtQuery.preSets.limit.isNull)
-        stmt.bind(cast(int) builtQuery.placeholders.where + 1, builtQuery.preSets.limit.get);
+        stmt.bind(cast(int) builtQuery.placeholders.where + 0, builtQuery.preSets.limit.get);
 
     if (!builtQuery.preSets.limitOffset.isNull)
-        stmt.bind(cast(int) builtQuery.placeholders.where + 2, builtQuery.preSets.limitOffset.get);
+        stmt.bind(cast(int) builtQuery.placeholders.where + 1, builtQuery.preSets.limitOffset.get);
 
     return stmt;
 }

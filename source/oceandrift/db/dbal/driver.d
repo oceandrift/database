@@ -45,8 +45,8 @@
     // cleanup on exit
     scope(exit) stmt.close();
 
-    // set // dynamic parameters are 1-indexed, first param is 1 (not zero!)
-    stmt.bind(1, 200);
+    // set // dynamic parameters are 0-indexed, first param is zero (not one!)
+    stmt.bind(0, 200);
     stmt.bind(1, 400);
 
     // execute the prepared statement
@@ -333,13 +333,43 @@ alias DatabaseConnection = DatabaseDriver;
 interface Statement
 {
 @safe:
+    /++
+     +/
     void close();
 
     /++
         Binds the passed value to the specified dynamic parameter
 
+        $(PITFALL
+            Dynamic paramters are 0-indexed,
+            i.e. the first parameter is `0` (not `1`).
+        )
+
+        $(ASIDE
+            Yes, indexes start with 1 in SQL,
+            but in oceandrift they don’t.
+                        
+            I’ve not only considered implementing them 1-indexed
+            (like PHP’s PDO or the SQLite3 C library does),
+            I even implemented them that way.
+            And got burned. Multiple times.
+
+            In the end it’s a choice between two evils (as in: inconsistencies):
+            $(LIST
+                * As we can’t change SQL and the database, those are always going to be 0-index.
+                * Query results will always be 0-indexed,
+                  unless we’d wrap them into a magic type that would make them inconsistent with the rest of the D ecosystem
+                  (or use AAs – this option also comes with its own pitfalls and disadvantages).
+                * Dynamic parameters are the only thing we can realistically choose to have either zero- or one-indexed.
+                  They can now be either inconsistent with query results or the database.
+            )
+
+            Data structures in D (like in most programming languages) are 0-indexed.
+            So I chose to go with this for dynamic parameters on the D side as well.
+        )
+
         Params:
-            index = 1-indexed index-number of the dynamic parameter to bind to
+            index = 0-indexed index-number of the dynamic parameter to bind to
             value = value to bind
      +/
     void bind(int index, const bool value);
@@ -457,11 +487,9 @@ static assert(isInputRange!Statement);
  +/
 void executeWith(Args...)(Statement stmt, Args bindValues)
 {
-    int idx = 1;
-    foreach (val; bindValues)
+    foreach (int idx, val; bindValues)
     {
         stmt.bind(idx, val);
-        ++idx;
     }
 
     stmt.execute();

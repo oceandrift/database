@@ -407,7 +407,7 @@ final class SQLite3Statement : Statement
         {
             this.resetIfNeeded();
 
-            immutable x = _stmtHandle.sqlite3_bind_int(index, value);
+            immutable x = _stmtHandle.sqlite3_bind_int(index + 1, value);
             enforce(x, "Parameter binding failed");
         }
 
@@ -420,7 +420,7 @@ final class SQLite3Statement : Statement
         {
             this.resetIfNeeded();
 
-            immutable x = _stmtHandle.sqlite3_bind_int64(index, value);
+            immutable x = _stmtHandle.sqlite3_bind_int64(index + 1, value);
             enforce(x, "Parameter binding failed");
         }
 
@@ -434,7 +434,7 @@ final class SQLite3Statement : Statement
         {
             this.resetIfNeeded();
 
-            immutable x = _stmtHandle.sqlite3_bind_double(index, value);
+            immutable x = _stmtHandle.sqlite3_bind_double(index + 1, value);
             enforce(x, "Parameter binding failed");
         }
 
@@ -442,7 +442,7 @@ final class SQLite3Statement : Statement
         {
             this.resetIfNeeded();
 
-            immutable x = _stmtHandle.sqlite3_bind_blob64(index, cast(void*) value.ptr, value.length, SQLITE_STATIC);
+            immutable x = _stmtHandle.sqlite3_bind_blob64(index + 1, cast(void*) value.ptr, value.length, SQLITE_STATIC);
             enforce(x, "Parameter binding failed");
         }
 
@@ -450,7 +450,7 @@ final class SQLite3Statement : Statement
         {
             this.resetIfNeeded();
 
-            immutable x = _stmtHandle.sqlite3_bind_text64(index, value.ptr, value.length, SQLITE_STATIC, SQLITE_UTF8);
+            immutable x = _stmtHandle.sqlite3_bind_text64(index + 1, value.ptr, value.length, SQLITE_STATIC, SQLITE_UTF8);
             enforce(x, "Parameter binding failed");
         }
 
@@ -483,7 +483,7 @@ final class SQLite3Statement : Statement
         void bind(int index, const typeof(null)) @trusted
         {
             this.resetIfNeeded();
-            immutable x = _stmtHandle.sqlite3_bind_null(index);
+            immutable x = _stmtHandle.sqlite3_bind_null(index + 1);
             enforce(x, "Parameter binding failed");
         }
     }

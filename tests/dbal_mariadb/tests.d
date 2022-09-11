@@ -124,24 +124,24 @@ unittest
     scope (exit)
         insert.close();
 
-    insert.bind(1, "asdf");
-    insert.bind(2, "jklö");
+    insert.bind(0, "asdf");
+    insert.bind(1, "jklö");
     insert.execute();
 
-    insert.bind(1, "qwer");
-    insert.bind(2, "uiop");
+    insert.bind(0, "qwer");
+    insert.bind(1, "uiop");
     insert.execute();
 
-    insert.bind(1, "yxcv");
-    insert.bind(2, "bnm,");
+    insert.bind(0, "yxcv");
+    insert.bind(1, "bnm,");
     insert.execute();
 
-    insert.bind(1, "qaz");
-    insert.bind(2, "wsx");
+    insert.bind(0, "qaz");
+    insert.bind(1, "wsx");
     insert.execute();
 
-    insert.bind(1, "edc");
-    insert.bind(2, "rfv");
+    insert.bind(0, "edc");
+    insert.bind(1, "rfv");
     insert.execute();
 
     Statement select = driver.prepare("
@@ -155,8 +155,8 @@ unittest
     scope (exit)
         select.close();
 
-    select.bind(1, 2);
-    select.bind(2, 5);
+    select.bind(0, 2);
+    select.bind(1, 5);
     select.execute();
     assert(!select.empty);
 
@@ -206,9 +206,9 @@ unittest
     insert.executeWith("Thomas", 21, "Tom");
     insert.executeWith("Daniel", 30, "Dan");
 
-    insert.bind(1, "Jan");
-    insert.bind(2, 22);
-    insert.bind(3, "WebFreak");
+    insert.bind(0, "Jan");
+    insert.bind(1, 22);
+    insert.bind(2, "WebFreak");
     insert.execute();
 
     {
@@ -222,7 +222,7 @@ unittest
         scope (exit)
             select.close();
 
-        select.bind(1, 22);
+        select.bind(0, 22);
         select.execute();
         assert(!select.empty);
 

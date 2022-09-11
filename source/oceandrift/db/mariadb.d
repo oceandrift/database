@@ -164,7 +164,7 @@ private mixin template bindImpl(T)
 {
     void bind(int index, const T value) @safe
     {
-        _stmt.setArg(index - 1, value);
+        _stmt.setArg(index, value);
     }
 }
 
