@@ -222,6 +222,7 @@
  +/
 module oceandrift.db.dbal.driver;
 
+import std.meta : staticIndexOf;
 import std.range : isInputRange;
 import std.sumtype;
 
@@ -354,7 +355,7 @@ interface Statement
             i.e. the first parameter is `0` (not `1`).
         )
 
-        $(ASIDE
+        $(SIDEBAR
             Yes, indexes start with 1 in SQL,
             but in oceandrift they don’t.
 
@@ -375,6 +376,15 @@ interface Statement
 
             Data structures in D (like in most programming languages) are 0-indexed.
             So I chose to go with this for dynamic parameters on the D side as well.
+
+            $(BLOCKQUOTE
+                In D (where 0-indexed arrays and slices are prefered) 0-indexing is the way to go whereever possible.
+            )
+
+            $(TIP
+                Oh well, even in PHP `PDO::FETCH_NUM` means result is an array starting at column 0.
+                Inconsistent, isn’t it?
+            )
         )
 
         Params:
@@ -443,6 +453,11 @@ interface Statement
     Row front();
 }
 
+/++
+    Binds the passed value to the specified dynamic parameter
+
+    Universal/driver-independent bind implementation for [DBValue].
+ +/
 void bindDBValue(Statement stmt, int index, const DBValue value)
 {
     value.match!(
@@ -528,11 +543,26 @@ alias DBValue = SumType!(
 
 alias null_t = typeof(null);
 
+/++
+    Returns the value stored in the DBValue sumtype
+
+    Throws:
+        [std.sumtype.MatchException] if the DBValue doesn’t hold the specified type T
+
+    See_Also:
+        [getAs]
++/
 T get(T)(DBValue value)
 {
     return value.tryMatch!((T t) => t);
 }
 
+/++
+    Determines whether a DBValue is `null`
+
+    Returns:
+        true = if NULL
++/
 bool isNull(DBValue value)
 {
     try
@@ -545,6 +575,13 @@ bool isNull(DBValue value)
     }
 }
 
+/++
+    Returns the value stored in the DBValue
+    casted to the specified type `T` if possible
+
+    Throws:
+        MatchException on error
++/
 T getAs(T)(DBValue value) pure
 {
     static if (is(T == bool))
@@ -560,7 +597,7 @@ T getAs(T)(DBValue value) pure
             (ref const ulong v) => cast(bool) v,
         );
 
-    static if (is(T == ubyte))
+    else static if (is(T == ubyte))
         return value.tryMatch!(
             (ref const bool v) => cast(ubyte) v,
             (ref const byte v) => cast(ubyte) v,
@@ -571,6 +608,32 @@ T getAs(T)(DBValue value) pure
             (ref const uint v) => cast(ubyte) v,
             (ref const long v) => cast(ubyte) v,
             (ref const ulong v) => cast(ubyte) v,
+        );
+
+    else static if (is(T == int))
+        return value.tryMatch!(
+            (ref const bool v) => cast(int) v,
+            (ref const byte v) => cast(int) v,
+            (ref const ubyte v) => cast(int) v,
+            (ref const short v) => cast(int) v,
+            (ref const ushort v) => cast(int) v,
+            (ref const int v) => v,
+            (ref const uint v) => cast(int) v,
+            (ref const long v) => cast(int) v,
+            (ref const ulong v) => cast(int) v,
+        );
+
+    else static if (is(T == uint))
+        return value.tryMatch!(
+            (ref const bool v) => cast(uint) v,
+            (ref const byte v) => cast(uint) v,
+            (ref const ubyte v) => cast(uint) v,
+            (ref const short v) => cast(uint) v,
+            (ref const ushort v) => cast(uint) v,
+            (ref const int v) => cast(uint) v,
+            (ref const uint v) => v,
+            (ref const long v) => cast(uint) v,
+            (ref const ulong v) => cast(uint) v,
         );
 
     else static if (is(T == long))
@@ -588,9 +651,15 @@ T getAs(T)(DBValue value) pure
 
     else static if (is(T == ulong))
         return value.tryMatch!(
-            (ref const bool v) => long(v),
-            (ref const ulong v) => v,
+            (ref const bool v) => ulong(v),
+            (ref const byte v) => ulong(v),
+            (ref const ubyte v) => ulong(v),
+            (ref const short v) => ulong(v),
+            (ref const ushort v) => ulong(v),
+            (ref const int v) => ulong(v),
+            (ref const uint v) => ulong(v),
             (ref const long v) => ulong(v),
+            (ref const ulong v) => v,
         );
 
     else static if (is(T == string))
@@ -598,9 +667,14 @@ T getAs(T)(DBValue value) pure
             (ref const string v) => v,
             (ref const const(ubyte)[] v) => cast(string) v.idup,
         );
+
     else
         static assert(0, "No getAs!T() routine for T == " ~ T.stringof);
 }
+
+enum bool isInSumType(T, SumType) = (staticIndexOf!(T, SumType.Types) >= 0);
+
+enum bool isDBValueCompatible(T) = isInSumType!(T, DBValue);
 
 /++
     Database Result Row

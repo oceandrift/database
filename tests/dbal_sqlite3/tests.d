@@ -565,4 +565,74 @@ public
         assert(bq.preSets.limit == 20);
         assert(bq.preSets.limitOffset == 40);
     }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("mountain").qb
+                .orderBy("height")
+                .select()
+                .build!SQLite3();
+        assert(bq.sql == `SELECT * FROM "mountain" ORDER BY "height"`);
+
+        enum BuiltQuery bqDesc =
+            table("mountain").qb
+                .orderBy("height", true)
+                .select()
+                .build!SQLite3();
+        assert(bqDesc.sql == `SELECT * FROM "mountain" ORDER BY "height" DESC`);
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("mountain").qb
+                .orderBy("height")
+                .select()
+                .build!SQLite3();
+        assert(bq.sql == `SELECT * FROM "mountain" ORDER BY "height"`);
+
+        enum BuiltQuery bqDesc =
+            table("mountain").qb
+                .orderBy("height", true)
+                .select()
+                .build!SQLite3();
+        assert(bqDesc.sql == `SELECT * FROM "mountain" ORDER BY "height" DESC`);
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("mountain").qb
+                .where("location", ComparisonOperator.notEquals)
+                .orderBy("height")
+                .limit(10)
+                .select()
+                .build!SQLite3();
+
+        assert(bq.sql == `SELECT * FROM "mountain" WHERE "location" <> ? ORDER BY "height" LIMIT ?`);
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("mountain").qb
+                .orderBy("height")
+                .orderBy("name", true)
+                .orderBy("location", true)
+                .select()
+                .build!SQLite3();
+
+        assert(bq.sql == `SELECT * FROM "mountain" ORDER BY "height", "name" DESC, "location" DESC`);
+
+        enum BuiltQuery bq2 =
+            table("mountain").qb
+                .orderBy("height")
+                .orderBy("name", true)
+                .orderBy("location", false)
+                .select()
+                .build!SQLite3();
+
+        assert(bq2.sql == `SELECT * FROM "mountain" ORDER BY "height", "name" DESC, "location"`);
+    }
 }

@@ -302,6 +302,7 @@ final class SQLite3 : DatabaseDriverSpec
 
             const query = CompilerQuery(select.query);
             query.where.whereToSQL(sql);
+            query.orderByToSQL(sql);
             query.limitToSQL(sql);
 
             return BuiltQuery(
@@ -494,7 +495,6 @@ final class SQLite3Statement : Statement
             }
 
             this.populateRow();
-
         }
 
         Row front() pure nothrow @nogc
@@ -735,6 +735,27 @@ pure:
             return;
 
         sql ~= " OFFSET ?";
+    }
+
+    void orderByToSQL(CompilerQuery q, ref Appender!string sql)
+    {
+        if (q.orderBy.length == 0)
+            return;
+
+        sql ~= " ORDER BY ";
+
+        foreach (idx, OrderingTerm term; q.orderBy)
+        {
+            if (idx > 0)
+                sql ~= ", ";
+
+            sql ~= '"';
+            sql ~= escapeIdentifier(term.column);
+            sql ~= '"';
+
+            if (term.desc)
+                sql ~= " DESC";
+        }
     }
 
     void toSQL(SelectExpression se, ref Appender!string sql)

@@ -312,6 +312,7 @@ struct CompilerQuery
     {
         this.table = q.table;
         this.where = q._where;
+        this.orderBy = q._orderBy;
         this.limit = q._limit;
     }
 
@@ -326,6 +327,11 @@ struct CompilerQuery
             WHERE clause
          +/
         Where where;
+
+        /++
+            ORDER BY clause
+        +/
+        OrderingTerm[] orderBy;
 
         /++
             LIMIT clause
@@ -351,7 +357,7 @@ Query complexQueryBuilder(const string table) nothrow @nogc
 ///
 alias qb = complexQueryBuilder;
 
-enum isComparisonOperator(T) = (
+enum bool isComparisonOperator(T) = (
         is(T == ComparisonOperator)
             || is(T == wchar)
             || is(T == char)
