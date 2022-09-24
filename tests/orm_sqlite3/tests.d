@@ -330,4 +330,74 @@ unittest
         immutable int min = stmt.front[0].getAs!int;
         assert(min == 1200);
     }
+
+    {
+        enum BuiltPreCollection!Mountain bpc = em
+                .find!Mountain()
+                .limit(1)
+                .select();
+
+        EntityCollection!Mountain ec = bpc.via(db);
+        assert(!ec.empty);
+
+        ec.popFront();
+        assert(ec.empty);
+    }
+
+    {
+        enum BuiltPreCollection!Mountain bpc = em
+                .find!Mountain()
+                .limit(3)
+                .select();
+
+        EntityCollection!Mountain ec = bpc.via(db);
+        assert(!ec.empty);
+
+        ec.popFront();
+        assert(!ec.empty);
+
+        ec.popFront();
+        assert(!ec.empty);
+
+        ec.popFront();
+        assert(ec.empty);
+    }
+
+    {
+        enum BuiltPreCollection!Mountain bpc = em
+                .find!Mountain()
+                .orderBy("height")
+                .limit(2, 3)
+                .select();
+
+        EntityCollection!Mountain ec = bpc.via(db);
+        assert(!ec.empty);
+
+        const Mountain m1 = ec.front;
+        assert(m1.height == 3201);
+
+        ec.popFront();
+        assert(!ec.empty);
+        const Mountain m2 = ec.front;
+        assert(m2.name == "Snowmountain");
+
+        ec.popFront();
+        assert(ec.empty);
+    }
+
+    {
+        EntityCollection!Mountain ec = em
+            .find!Mountain()
+            .orderBy("height", true)
+            .limit(1)
+            .selectVia(db);
+
+        assert(!ec.empty);
+
+        const Mountain highest = ec.front;
+        assert(highest.name == "Mt. Nowhere");
+
+        ec.popFront();
+        assert(ec.empty);
+    }
 }

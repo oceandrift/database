@@ -272,10 +272,10 @@ struct OrderingTerm
 struct Limit
 {
     bool enabled = false;
-    Nullable!int preSet;
+    Nullable!ulong preSet;
 
     bool offsetEnabled = false;
-    Nullable!int offsetPreSet;
+    Nullable!ulong offsetPreSet;
 }
 
 /++
@@ -479,7 +479,7 @@ Query orderBy(Query q, string column, bool desc = false)
     return q;
 }
 
-Query limit(Query q, bool withOffset = false)
+Query limit(bool withOffset = false)(Query q)
 {
     q._limit.enabled = true;
     q._limit.preSet.nullify();
@@ -490,7 +490,7 @@ Query limit(Query q, bool withOffset = false)
     return q;
 }
 
-Query limit(Query q, int limit)
+Query limit(Query q, ulong limit)
 {
     q._limit.enabled = true;
     q._limit.preSet = limit;
@@ -498,7 +498,7 @@ Query limit(Query q, int limit)
     return q;
 }
 
-Query limit(Query q, int limit, int offset)
+Query limit(Query q, ulong limit, ulong offset)
 {
     q._limit.enabled = true;
     q._limit.preSet = limit;
@@ -696,8 +696,8 @@ public alias PlaceholdersMeta = const(_PlaceholdersMeta);
 private struct _PreSets
 {
     DBValue[int] where;
-    Nullable!int limit;
-    Nullable!int limitOffset;
+    Nullable!ulong limit;
+    Nullable!ulong limitOffset;
 }
 
 public alias PreSets = const(_PreSets);

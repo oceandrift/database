@@ -544,7 +544,7 @@ public
     {
         enum BuiltQuery bq =
             table("mountain").qb
-                .limit(true)
+                .limit!true()
                 .delete_()
                 .build!SQLite3();
         assert(bq.sql == `DELETE FROM "mountain" LIMIT ? OFFSET ?`);

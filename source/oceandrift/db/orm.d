@@ -1,3 +1,6 @@
+/++
+    Object-Relational Mapping (ORM)
+ +/
 module oceandrift.db.orm;
 
 import std.meta;
@@ -7,7 +10,7 @@ import std.traits;
 import oceandrift.db.dbal.driver;
 import oceandrift.db.dbal.v4;
 
-public import oceandrift.db.dbal.v4 : limit, where, whereNot, whereParentheses;
+public import oceandrift.db.dbal.v4 : where, whereNot, whereParentheses;
 
 @safe:
 
@@ -109,6 +112,11 @@ struct PreCollection(TEntity, DatabaseDriver)
         return BuiltPreCollection!TEntity(bq);
     }
 
+    EntityCollection!TEntity selectVia(DatabaseDriver db)
+    {
+        return this.select().via(db);
+    }
+
     BuiltQuery count()
     {
         BuiltQuery bq = _query
@@ -170,6 +178,21 @@ struct PreCollection(TEntity, DatabaseDriver)
         Query delegate(scope Query q) @safe pure conditions)
     {
         return typeof(this)(_query.whereParentheses!logicalJunction(conditions));
+    }
+
+    PreCollection!(TEntity, DatabaseDriver) orderBy(string column, bool desc = false)
+    {
+        return typeof(this)(_query.orderBy(column, desc));
+    }
+
+    PreCollection!(TEntity, DatabaseDriver) limit(ulong limit)
+    {
+        return typeof(this)(_query.limit(limit));
+    }
+
+    PreCollection!(TEntity, DatabaseDriver) limit(ulong limit, int offset)
+    {
+        return typeof(this)(_query.limit(limit, offset));
     }
 
 private:
