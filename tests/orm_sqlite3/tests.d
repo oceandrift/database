@@ -294,10 +294,40 @@ unittest
     {
         static immutable int cap = 3000;
         static immutable string loc = "Nowhere";
-        PreCollection!(Mountain, SQLite3) pc = em.find!Mountain()
-            .where("height", '<', cap)
-            .where("location", '=', loc);
+        enum PreCollection!(Mountain, SQLite3) pc = em.find!Mountain()
+                .where("height", '<', cap)
+                .where("location", '=', loc);
 
-        assert(pc.count(db) == 2);
+        immutable ulong cnt = pc.countVia(db);
+        assert(cnt == 2);
+
+        enum BuiltQuery qCntCT = pc.count();
+        Statement stmt = db.prepareBuiltQuery(qCntCT);
+        stmt.execute();
+        immutable cnt2 = stmt.front[0].getAs!ulong;
+        assert(cnt == 2);
+    }
+
+    {
+        static immutable string loc = "Elsewhere";
+        enum PreCollection!(Mountain, SQLite3) pc = em.find!Mountain().where("location", '=', loc);
+
+        immutable DBValue maxV = pc.aggregateVia(AggregateFunction.max, "height", db);
+
+        immutable int max = maxV.getAs!int;
+        assert(max == 4111);
+    }
+
+    {
+        BuiltQuery bq = em
+            .find!Mountain()
+            .aggregate(AggregateFunction.min, "height");
+
+        Statement stmt = db.prepareBuiltQuery(bq);
+        stmt.execute();
+        assert(!stmt.empty);
+
+        immutable int min = stmt.front[0].getAs!int;
+        assert(min == 1200);
     }
 }

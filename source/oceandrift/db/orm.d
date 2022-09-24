@@ -109,15 +109,42 @@ struct PreCollection(TEntity, DatabaseDriver)
         return BuiltPreCollection!TEntity(bq);
     }
 
-    // TODO
-    ulong count(DatabaseDriver db)
+    BuiltQuery count()
     {
         BuiltQuery bq = _query
             .select(oceandrift.db.dbal.v4.count("*"))
             .build!DatabaseDriver();
+        return bq;
+    }
+
+    ulong countVia(DatabaseDriver db)
+    {
+        BuiltQuery bq = this.count();
+
         Statement stmt = db.prepareBuiltQuery(bq);
         stmt.execute();
+
+        debug assert(!stmt.empty);
         return stmt.front[0].getAs!ulong();
+    }
+
+    BuiltQuery aggregate(bool distinct = false)(AggregateFunction aggr, string column)
+    {
+        BuiltQuery bq = _query
+            .select(SelectExpression(column, aggr, distinct))
+            .build!DatabaseDriver();
+        return bq;
+    }
+
+    DBValue aggregateVia(bool distinct = false)(AggregateFunction aggr, string column, DatabaseDriver db)
+    {
+        BuiltQuery bq = this.aggregate!(distinct)(aggr, column);
+
+        Statement stmt = db.prepareBuiltQuery(bq);
+        stmt.execute();
+
+        debug assert(!stmt.empty);
+        return stmt.front[0];
     }
 
     void delete_(DatabaseDriver)
@@ -165,9 +192,8 @@ private:
 EntityCollection!TEntity map(TEntity, DatabaseDriver)(DatabaseDriver db, BuiltPreCollection!TEntity builtPreCollection)
         if (isDatabaseDriver!DatabaseDriver && isEntityType!TEntity)
 {
-    Statement stmt = db.prepareBuiltQuery(builtPreCollection._query);
-    stmt.execute();
-    return EntityCollection!TEntity(stmt);
+    pragma(inline, true);
+    return via(builtPreCollection, db);
 }
 
 EntityCollection!TEntity via(TEntity, DatabaseDriver)(
@@ -331,7 +357,8 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         return PreCollection!(TEntity, DatabaseDriver)(q);
     }
 
-    deprecated bool manyToOne(TEntityOne, TEntityMany)(TEntityMany many, out TEntityOne output)
+    bool manyToOne(TEntityOne, TEntityMany)(TEntityMany many, out TEntityOne output)
+            if (isEntityType!TEntityOne && isEntityType!TEntityMany)
     {
         enum BuiltQuery q = table(tableName!TEntityOne).qb
                 .where("id", '=')
@@ -350,23 +377,30 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
     }
 
     ///
-    public alias oneToOne = manyToOne;
-
-    deprecated EntityCollection!TEntityMany oneToMany(TEntityMany, TEntityOne)(TEntityOne one)
+    bool oneToOne(TEntityTarget, TEntitySource)(TEntitySource source, out TEntityTarget toOne)
+            if (isEntityType!TEntityTarget && isEntityType!TEntitySource)
     {
-        Query q = table(table!TEntityMany).qb
-            .where(tableName!TEntityOne ~ "_id", '=')
-            .select(columnNames!TEntityMany);
+        pragma(inline, true);
+        return manyToOne(source, toOne);
     }
 
-    void _pragma(TEntity)()
+    static void _pragma(TEntity)()
     {
         pragma(msg, "==== EntityManager._pragma!(" ~ TEntity.stringof ~ "):");
-        pragma(msg, "- Table Name:\n" ~ tableName!TEntity);
-        pragma(msg, "- Column Names:");
-        pragma(msg, columnNames!TEntity);
-        pragma(msg, "- Column Names (no ID):");
-        pragma(msg, columnNamesNoID!TEntity);
+
+        static if (!isEntityType!TEntity)
+        {
+            pragma(msg, "- ERROR: Not a compatible type");
+        }
+        else
+        {
+            pragma(msg, "- Table Name:\n" ~ tableName!TEntity);
+            pragma(msg, "- Column Names:");
+            pragma(msg, columnNames!TEntity);
+            pragma(msg, "- Column Names (no ID):");
+            pragma(msg, columnNamesNoID!TEntity);
+        }
+
         pragma(msg, "/====");
     }
 }
