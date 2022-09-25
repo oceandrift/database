@@ -10,7 +10,7 @@ import std.traits;
 import oceandrift.db.dbal.driver;
 import oceandrift.db.dbal.v4;
 
-public import oceandrift.db.dbal.v4 : where, whereNot, whereParentheses;
+public import oceandrift.db.dbal.v4 : asc, desc, distinct, where, whereNot, whereParentheses;
 
 @safe:
 

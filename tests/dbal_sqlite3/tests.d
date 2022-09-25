@@ -628,8 +628,8 @@ public
         enum BuiltQuery bq2 =
             table("mountain").qb
                 .orderBy("height")
-                .orderBy("name", true)
-                .orderBy("location", false)
+                .orderBy("name", desc)
+                .orderBy("location", asc)
                 .select()
                 .build!SQLite3();
 

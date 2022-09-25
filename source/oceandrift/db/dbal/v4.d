@@ -263,6 +263,11 @@ public @safe pure nothrow @nogc:
     }
 }
 
+enum {
+    asc = false,
+    desc = true,
+}
+
 struct OrderingTerm
 {
     string column;

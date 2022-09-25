@@ -388,7 +388,7 @@ unittest
     {
         EntityCollection!Mountain ec = em
             .find!Mountain()
-            .orderBy("height", true)
+            .orderBy("height", desc)
             .limit(1)
             .selectVia(db);
 
