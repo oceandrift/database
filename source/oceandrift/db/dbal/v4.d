@@ -90,7 +90,7 @@
 
     Talking about “later”, it’s time to build an actual query from those abstractations…
     This is done by calling [build] on the [Query].
-    The target dialect is specified through a template parameter.
+    The target dialect is specified through a template parameter ([oceandrift.db.sqlite3.SQLite3] in this example).
 
     ---
     BuiltQuery q = table("person").qb
@@ -98,8 +98,47 @@
         .select("*")
         .build!SQLite3()
     ;
-    writeln(q.sql);
+    writeln(q.sql); // prints: SELECT * FROM "person" WHERE "age" > ?
     ---
+
+    Multiple conditions can be chained by calling [where] multiple times:
+
+    ---
+    Query q = table("person").qb
+        .where("age", '>')
+        .where("height", '>')
+    ;
+    // --> FROM "person" WHERE "age" > ? AND "height" > ?
+    ---
+
+    Note that “conjunction” (AND) is the default.
+    To create a “disjunction” (OR) set the first template parameter of [where] to [or]
+
+    ---
+    Query q = table("person").qb
+        .where   ("age", '>')
+        .where!or("height", '>')
+    ;
+    // --> FROM "person" WHERE "age" > ? OR "height" > ?
+    ---
+
+    $(TIP
+        [or] is shorthand for [LogicalOperator.or].
+    )
+
+    $(TIP
+        Of course there is [and] (aka [LogicalOperator.and]), too.
+
+        ---
+        Query q = table("person").qb
+            .where    ("age", '>')
+            .where!and("height", '>')
+        ;
+        // --> FROM "person" WHERE "age" > ? AND "height" > ?
+        ---
+
+        This results in the same query as not specifing the logical juntion in the first place.
+    )
 
     $(NOTE
         The primary goal of this query builder implementation is to power an ORM.
@@ -170,20 +209,29 @@ enum ComparisonOperator : wchar
     // between = '∓',
 }
 
-// Logical operators
-enum
+/++
+    Logical operators
++/
+enum LogicalOperator : bool
 {
     /// OR (logical operator, SQL)
     or = true,
+
     /// AND (logical operator, SQL)
     and = false,
 }
 
 enum
 {
-    /// NOT (SQL)
-    not = false,
+    /// OR (logical operator, SQL)
+    or = LogicalOperator.or,
+
+    /// AND (logical operator, SQL)
+    and = LogicalOperator.and,
 }
+
+/// NOT (SQL)
+enum not = false;
 
 /++
     Abstract SQL query token
@@ -263,6 +311,9 @@ public @safe pure nothrow @nogc:
     }
 }
 
+/++
+    Ascending vs. Descending
+ +/
 enum OrderingSequence : bool
 {
     asc = false,
@@ -271,7 +322,14 @@ enum OrderingSequence : bool
 
 enum
 {
+    /++
+        ASCending
+     +/
     asc = OrderingSequence.asc,
+
+    /++
+        DESCending
+     +/
     desc = OrderingSequence.desc,
 }
 
@@ -366,7 +424,7 @@ Query complexQueryBuilder(const string table) nothrow @nogc
     return Query(Table(table));
 }
 
-///
+/// ditto
 alias qb = complexQueryBuilder;
 
 enum bool isComparisonOperator(T) = (
@@ -392,10 +450,16 @@ enum bool isComparisonOperator(T) = (
         .where("age", '>', 60)
         .where("age", ComparisonOperator.lessThan, 100)
     ;
+
+    // …FROM people WHERE name = ? OR name = ?…
+    Query qNameAorB = table("people").qb
+        .where   ("name", '=')
+        .where!or("name", '=')              // explicit !or as !and is the default
+    ;
     ---
  +/
 /// ditto
-Query where(bool logicalJunction = and, TComparisonOperator)(
+Query where(LogicalOperator logicalJunction = and, TComparisonOperator)(
     Query q,
     string column,
     TComparisonOperator op
@@ -423,7 +487,7 @@ Query where(bool logicalJunction = and, TComparisonOperator)(
 }
 
 /// ditto
-Query where(bool logicalJunction = and, TComparisonOperator, T)(
+Query where(LogicalOperator logicalJunction = and, TComparisonOperator, T)(
     Query q,
     string column,
     TComparisonOperator op,
@@ -437,7 +501,7 @@ Query where(bool logicalJunction = and, TComparisonOperator, T)(
 
 /++
     Appends checks in parentheses to the query's WHERE clause
-    
+
     ---
     // …FROM mountain WHERE height > ? AND ( country = ? OR country = ? )…
     Query qMountainsGreaterThanInUSorCA = table("mountain").qb
@@ -449,7 +513,7 @@ Query where(bool logicalJunction = and, TComparisonOperator, T)(
     ;
     ---
  +/
-Query whereParentheses(bool logicalJunction = and)(Query q, Query delegate(scope Query q) @safe pure conditions)
+Query whereParentheses(LogicalOperator logicalJunction = and)(Query q, Query delegate(scope Query q) @safe pure conditions)
 {
     enum Token tokenLogicalJunction =
         (logicalJunction == or) ? Token(Token.Type.or) : Token(Token.Type.and);
@@ -485,12 +549,35 @@ template whereNot(bool logicalJunction = or, TComparisonOperator)
     }
 }
 
+/++
+    Appends a ORDER BY clause to a query
+
+    ---
+    q.orderBy("column");                        // ASCending order is the default
+
+    q.orderBy("column", asc);                   // explicit ASCending order
+    q.orderBy("column", desc);                  // DESCending order
+
+    q.orderBy("column", OrderingSequence.asc);  // ASC, long form
+    q.orderBy("column", OrderingSequence.desc); // DESC, long form
+    ---
+ +/
 Query orderBy(Query q, string column, OrderingSequence orderingSequence = asc)
 {
     q._orderBy ~= OrderingTerm(column, orderingSequence);
     return q;
 }
 
+/++
+    Sets or updates the LIMIT clause of a query
+
+    ---
+    q.limit(25);        // LIMIT ?          – pre-set: limit=25
+    q.limit(25, 100);   // LIMIT ? OFFSET ? – pre-set: limit=25,offset=100
+
+    q.limit(false);     // LIMIT ?          – set values later
+    q.limit(true);      // LIMIT ? OFFSET ? – set values later
+ +/
 Query limit(bool withOffset = false)(Query q)
 {
     q._limit.enabled = true;
@@ -502,6 +589,7 @@ Query limit(bool withOffset = false)(Query q)
     return q;
 }
 
+/// ditto
 Query limit(Query q, ulong limit)
 {
     q._limit.enabled = true;
@@ -510,6 +598,7 @@ Query limit(Query q, ulong limit)
     return q;
 }
 
+/// ditto
 Query limit(Query q, ulong limit, ulong offset)
 {
     q._limit.enabled = true;
@@ -522,71 +611,144 @@ Query limit(Query q, ulong limit, ulong offset)
 
 // -- Select
 
+/++
+    SQL aggregate function types
+ +/
 enum AggregateFunction
 {
-    none = 0,
-    avg,
-    count,
-    max,
-    min,
-    sum,
-    group_concat,
+    none = 0, ///
+    avg, ///
+    count, ///
+    max, ///
+    min, ///
+    sum, ///
+    group_concat, ///
 }
 
+/++
+    SELECT expression abstraction
+
+    $(WARNING
+        A select expression is a unit to be selected by a query (like a column, or the aggregate (count, min, max, …) of a column).
+
+        Not to confuse with “SELECT query”.
+        See [Select] for abstraction of the latter.
+    )
+ +/
 struct SelectExpression
 {
+    /++
+        Column to select
+     +/
     string columnName;
-    AggregateFunction aggregateFunction;
-    Distinct distinct;
+
+    /++
+        Aggregate function to apply
+     +/
+    AggregateFunction aggregateFunction = AggregateFunction.none;
+
+    /++
+        Whether selection should be DISTINCT (or not)
+     +/
+    Distinct distinct = Distinct.no;
 }
 
+/++
+    SQL DISTINCT keyword abstraction
+ +/
 enum Distinct : bool
 {
+    ///
     no = false,
+
+    ///
     yes = true,
 }
 
-enum
-{
-    distinct = Distinct.yes,
-}
+/++
+    DISTINCT
+    i.e. no duplicates
++/
+enum Distinct distinct = Distinct.yes;
 
+/++
+    Short-hand helper function for SELECT AVG(…)
+ +/
 SelectExpression avg(Distinct distinct = Distinct.no)(string column)
 {
     return SelectExpression(column, AggregateFunction.avg, distinct);
 }
 
+/++
+    Short-hand helper function for SELECT COUNT(…)
+ +/
 SelectExpression count(Distinct distinct = Distinct.no)(string column = "*")
 {
     return SelectExpression(column, AggregateFunction.count, distinct);
 }
 
+/++
+    Short-hand helper function for SELECT MAX(…)
+ +/
 SelectExpression max(Distinct distinct = Distinct.no)(string column)
 {
     return SelectExpression(column, AggregateFunction.max, distinct);
 }
 
+/++
+    Short-hand helper function for SELECT MIN(…)
+ +/
 SelectExpression min(Distinct distinct = Distinct.no)(string column)
 {
     return SelectExpression(column, AggregateFunction.min, distinct);
 }
 
+/++
+    Short-hand helper function for SELECT SUM(…)
+ +/
 SelectExpression sum(Distinct distinct = Distinct.no)(string column)
 {
     return SelectExpression(column, AggregateFunction.sum, distinct);
 }
 
+/++
+    Short-hand helper function for SELECT GROUP_CONCAT(…)
+ +/
 SelectExpression group_concat(Distinct distinct = Distinct.no)(string column)
 {
     return SelectExpression(column, AggregateFunction.groupConcat, distinct);
 }
 
+/++
+    SELECT Query abstraction
+ +/
 struct Select
 {
     Query query;
     const(SelectExpression)[] columns;
 }
 
+/++
+    Creates an abstracted SELECT query selecting the specified columns.
+
+    ---
+    Select mtHigherThan2k = table("mountain").qb
+        .where("height", '>', 2000)
+        .select("id", "height")
+    ;
+
+    Select knownMountains = table("mountain").qb
+        .select(count("*"))
+    ;
+
+    Select maxHeight = table("mountain").qb
+        .select(max("height"))
+    ;
+    ---
+
+    Params:
+        columns = Columns to select; either as strings or [SelectExpression]s
+ +/
 Select select(Column...)(Query from, Column columns)
 {
     static if (columns.length == 0)
@@ -617,17 +779,37 @@ Select select(Column...)(Query from, Column columns)
 
 // -- Update
 
+/++
+    UPDATE query abstraction
+ +/
 struct Update
 {
     Query query;
     const(string)[] columns;
 }
 
+/++
+    Creates an abstracted UPDATE query for updating the specified columns
+
+    ---
+    Update updateMountainNo90 = table("mountain").qb
+        .where("id", '=', 90)
+        .update("height")
+    ;
+
+    Update updateStats = table("mountain").qb.update(
+        "visitors",
+        "times_summit_reached",
+        "updated_at"
+    );
+    ---
+ +/
 Update update(Query query, const(string)[] columns)
 {
     return Update(query, columns);
 }
 
+/// ditto
 Update update(Columns...)(Query query, Columns columns)
 {
     auto data = new string[](columns.length);
@@ -651,6 +833,9 @@ Update update(Columns...)(Query query, Columns columns)
 
 // -- Insert
 
+/++
+    INSERT query abstraction
+ +/
 struct Insert
 {
     Table table;
@@ -658,11 +843,37 @@ struct Insert
     uint rowCount = 1;
 }
 
+/++
+    Creates an abstracted INSERT query for inserting row(s) into the specified table
+    filling the passed columns
+
+    ---
+    Insert insertMountain = table("mountain").insert(
+        "name",
+        "location",
+        "height"
+    );
+    // INSERT INTO "mountain"("name", "location", "height") VALUES (?, ?, ?)
+
+    Insert insert3MountainsAtOnce = table("mountain")
+        .insert(
+            "name",
+            "height"
+        )
+        .times(3)
+    ;
+    // INSERT INTO "mountain"("name", "height") VALUES (?, ?), (?, ?), (?, ?)
+    ---
+
+    See_Also:
+        Use [times] to create a query for inserting multiple rows at once.
+ +/
 Insert insert(Table table, const(string)[] columns)
 {
     return Insert(table, columns);
 }
 
+/// ditto
 Insert insert(Columns...)(Table table, Columns columns)
 {
     auto data = new string[](columns.length);
@@ -684,6 +895,11 @@ Insert insert(Columns...)(Table table, Columns columns)
     return table.insert(data);
 }
 
+/++
+    Specifies how many rows to INSERT a once
+
+    e.g. `INSERT INTO "mountain"("name", "height") VALUES (?, ?), (?, ?)`
+ +/
 Insert times(Insert insert, const uint rows)
 {
     insert.rowCount = rows;
@@ -692,11 +908,24 @@ Insert times(Insert insert, const uint rows)
 
 // -- Delete
 
+/++
+    DELETE query abstraction
+ +/
 struct Delete
 {
     Query query;
 }
 
+/++
+    Creates an abstracted DELETE query from the specified query
+
+    ---
+    Delete deleteMountainsWithUnknownHeight = table("mountain").qb
+        .where("height", ComparisonOperator.isNull)
+        .delete_()
+    ;
+    // DELETE FROM "mountain" WHERE "height" IS NULL
+ +/
 Delete delete_(Query query)
 {
     return Delete(query);
@@ -709,6 +938,7 @@ private struct _PlaceholdersMeta
     size_t where;
 }
 
+///
 public alias PlaceholdersMeta = const(_PlaceholdersMeta);
 
 private struct _PreSets
@@ -718,6 +948,7 @@ private struct _PreSets
     Nullable!ulong limitOffset;
 }
 
+///
 public alias PreSets = const(_PreSets);
 
 private struct _BuiltQuery
@@ -727,15 +958,49 @@ private struct _BuiltQuery
     PreSets preSets;
 }
 
-///
+/++
+    Built query as generated by a QueryBuilder
+
+    or in other words: the result of query building
+
+    ---
+    // Construct an abstract query
+    Select query = table("mountain").qb.select(count("*"));
+
+    // Build the query with the query builder of your choice (e.g. [oceandrift.db.sqlite3.SQLite3] when using SQLite3)
+    BuiltQuery builtQuery = QueryBuilder.build(query);
+
+    // Prepare a statement from your query by calling [prepareBuiltQuery]
+    Statement stmt = db.prepareBuiltQuery(builtQuery);
+
+    stmt.execute();
+    // …
+    ---
+
+    ---
+    // More idiomatic way using UFCS:
+    BuiltQuery builtQuery = table("mountain").qb
+        .select(count("*"))
+        .build!QueryCompiler()
+    ;
+
+    // Query building works during compile-time as well(!):
+    enum BuiltQuery bq = table("mountain").qb
+        .select(count("*"))
+        .build!QueryCompiler()
+    ;
+    ---
+ +/
 public alias BuiltQuery = const(_BuiltQuery);
 
 /++
     Determines whether `T` is a valid SQL “Query Compiler” implementation
-    
+
     ---
     struct MyDatabaseDriver
     {
+        // […]
+
     @safe pure:
         static BuiltQuery build(const Select selectQuery);
         static BuiltQuery build(const Update updateQuery);
@@ -756,26 +1021,33 @@ enum bool isQueryCompiler(T) =
 );
 // dfmt on
 
-pragma(inline, true)
+/++
+    Builds the passed query through the provided QueryCompiler
+    (UFCS helper function)
+ +/
 BuiltQuery build(QueryCompiler)(Select q) if (isQueryCompiler!QueryCompiler)
 {
+    pragma(inline, true);
     return QueryCompiler.build(q);
 }
 
-pragma(inline, true)
+/// ditto
 BuiltQuery build(QueryCompiler)(Update q) if (isQueryCompiler!QueryCompiler)
 {
+    pragma(inline, true);
     return QueryCompiler.build(q);
 }
 
-pragma(inline, true)
+/// ditto
 BuiltQuery build(QueryCompiler)(Insert q) if (isQueryCompiler!QueryCompiler)
 {
+    pragma(inline, true);
     return QueryCompiler.build(q);
 }
 
-pragma(inline, true)
+/// ditto
 BuiltQuery build(QueryCompiler)(Delete q) if (isQueryCompiler!QueryCompiler)
 {
+    pragma(inline, true);
     return QueryCompiler.build(q);
 }

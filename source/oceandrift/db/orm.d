@@ -160,21 +160,21 @@ struct PreCollection(TEntity, DatabaseDriver)
         assert(0);
     }
 
-    PreCollection!(TEntity, DatabaseDriver) where(bool logicalJunction = and, TComparisonOperator)(
+    PreCollection!(TEntity, DatabaseDriver) where(LogicalOperator logicalJunction = and, TComparisonOperator)(
         string column, TComparisonOperator op, const DBValue value)
             if (isComparisonOperator!TComparisonOperator)
     {
         return typeof(this)(_query.where!logicalJunction(column, op, value));
     }
 
-    PreCollection!(TEntity, DatabaseDriver) where(bool logicalJunction = and, TComparisonOperator, T)(
+    PreCollection!(TEntity, DatabaseDriver) where(LogicalOperator logicalJunction = and, TComparisonOperator, T)(
         string column, TComparisonOperator op, const T value)
             if (isComparisonOperator!TComparisonOperator && isDBValueCompatible!T)
     {
         return typeof(this)(_query.where!logicalJunction(column, op, value));
     }
 
-    PreCollection!(TEntity, DatabaseDriver) whereParentheses(bool logicalJunction = and)(
+    PreCollection!(TEntity, DatabaseDriver) whereParentheses(LogicalOperator logicalJunction = and)(
         Query delegate(scope Query q) @safe pure conditions)
     {
         return typeof(this)(_query.whereParentheses!logicalJunction(conditions));
