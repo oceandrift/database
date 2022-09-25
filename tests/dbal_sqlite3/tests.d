@@ -577,7 +577,7 @@ public
 
         enum BuiltQuery bqDesc =
             table("mountain").qb
-                .orderBy("height", true)
+                .orderBy("height", desc)
                 .select()
                 .build!SQLite3();
         assert(bqDesc.sql == `SELECT * FROM "mountain" ORDER BY "height" DESC`);
@@ -594,7 +594,7 @@ public
 
         enum BuiltQuery bqDesc =
             table("mountain").qb
-                .orderBy("height", true)
+                .orderBy("height", desc)
                 .select()
                 .build!SQLite3();
         assert(bqDesc.sql == `SELECT * FROM "mountain" ORDER BY "height" DESC`);
@@ -618,8 +618,8 @@ public
         enum BuiltQuery bq =
             table("mountain").qb
                 .orderBy("height")
-                .orderBy("name", true)
-                .orderBy("location", true)
+                .orderBy("name", desc)
+                .orderBy("location", desc)
                 .select()
                 .build!SQLite3();
 

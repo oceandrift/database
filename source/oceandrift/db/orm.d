@@ -136,7 +136,7 @@ struct PreCollection(TEntity, DatabaseDriver)
         return stmt.front[0].getAs!ulong();
     }
 
-    BuiltQuery aggregate(bool distinct = false)(AggregateFunction aggr, string column)
+    BuiltQuery aggregate(Distinct distinct = Distinct.no)(AggregateFunction aggr, string column)
     {
         BuiltQuery bq = _query
             .select(SelectExpression(column, aggr, distinct))
@@ -144,7 +144,7 @@ struct PreCollection(TEntity, DatabaseDriver)
         return bq;
     }
 
-    DBValue aggregateVia(bool distinct = false)(AggregateFunction aggr, string column, DatabaseDriver db)
+    DBValue aggregateVia(Distinct distinct = Distinct.no)(AggregateFunction aggr, string column, DatabaseDriver db)
     {
         BuiltQuery bq = this.aggregate!(distinct)(aggr, column);
 
@@ -180,9 +180,9 @@ struct PreCollection(TEntity, DatabaseDriver)
         return typeof(this)(_query.whereParentheses!logicalJunction(conditions));
     }
 
-    PreCollection!(TEntity, DatabaseDriver) orderBy(string column, bool desc = false)
+    PreCollection!(TEntity, DatabaseDriver) orderBy(string column, OrderingSequence orderingSequence = asc)
     {
-        return typeof(this)(_query.orderBy(column, desc));
+        return typeof(this)(_query.orderBy(column, orderingSequence));
     }
 
     PreCollection!(TEntity, DatabaseDriver) limit(ulong limit)

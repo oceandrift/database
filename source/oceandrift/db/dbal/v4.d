@@ -263,15 +263,22 @@ public @safe pure nothrow @nogc:
     }
 }
 
-enum {
+enum OrderingSequence : bool
+{
     asc = false,
     desc = true,
+}
+
+enum
+{
+    asc = OrderingSequence.asc,
+    desc = OrderingSequence.desc,
 }
 
 struct OrderingTerm
 {
     string column;
-    bool desc = false;
+    OrderingSequence orderingSequence = OrderingSequence.asc;
 }
 
 struct Limit
@@ -478,9 +485,9 @@ template whereNot(bool logicalJunction = or, TComparisonOperator)
     }
 }
 
-Query orderBy(Query q, string column, bool desc = false)
+Query orderBy(Query q, string column, OrderingSequence orderingSequence = asc)
 {
-    q._orderBy ~= OrderingTerm(column, desc);
+    q._orderBy ~= OrderingTerm(column, orderingSequence);
     return q;
 }
 
@@ -530,40 +537,46 @@ struct SelectExpression
 {
     string columnName;
     AggregateFunction aggregateFunction;
-    bool distinct;
+    Distinct distinct;
+}
+
+enum Distinct : bool
+{
+    no = false,
+    yes = true,
 }
 
 enum
 {
-    distinct = true,
+    distinct = Distinct.yes,
 }
 
-SelectExpression avg(bool distinct = false)(string column)
+SelectExpression avg(Distinct distinct = Distinct.no)(string column)
 {
     return SelectExpression(column, AggregateFunction.avg, distinct);
 }
 
-SelectExpression count(bool distinct = false)(string column = "*")
+SelectExpression count(Distinct distinct = Distinct.no)(string column = "*")
 {
     return SelectExpression(column, AggregateFunction.count, distinct);
 }
 
-SelectExpression max(bool distinct = false)(string column)
+SelectExpression max(Distinct distinct = Distinct.no)(string column)
 {
     return SelectExpression(column, AggregateFunction.max, distinct);
 }
 
-SelectExpression min(bool distinct = false)(string column)
+SelectExpression min(Distinct distinct = Distinct.no)(string column)
 {
     return SelectExpression(column, AggregateFunction.min, distinct);
 }
 
-SelectExpression sum(bool distinct = false)(string column)
+SelectExpression sum(Distinct distinct = Distinct.no)(string column)
 {
     return SelectExpression(column, AggregateFunction.sum, distinct);
 }
 
-SelectExpression group_concat(bool distinct = false)(string column)
+SelectExpression group_concat(Distinct distinct = Distinct.no)(string column)
 {
     return SelectExpression(column, AggregateFunction.groupConcat, distinct);
 }

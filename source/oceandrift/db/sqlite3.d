@@ -753,7 +753,7 @@ pure:
             sql ~= escapeIdentifier(term.column);
             sql ~= '"';
 
-            if (term.desc)
+            if (term.orderingSequence == OrderingSequence.desc)
                 sql ~= " DESC";
         }
     }
