@@ -400,4 +400,37 @@ unittest
         ec.popFront();
         assert(ec.empty);
     }
+
+    {
+        static immutable string loc = "Elsewhere";
+        enum PreCollection!(Mountain, SQLite3) pc = em.find!Mountain().where("location", '=', loc);
+        enum BuiltQuery bq = pc.delete_();
+
+        Statement stmt = db.prepareBuiltQuery(bq);
+        stmt.execute();
+        assert(stmt.empty);
+    }
+
+    {
+        em.find!Mountain().where("height", '<', 3000).deleteVia(db);
+
+        ulong left = em.find!Mountain().countVia(db);
+        assert(left == 3);
+
+        EntityCollection!Mountain mtsLeft = em.find!Mountain().orderBy("height").selectVia(db);
+
+        assert(!mtsLeft.empty);
+        assert(mtsLeft.front.name == "Hill 1");
+
+        mtsLeft.popFront();
+        assert(!mtsLeft.empty);
+        assert(mtsLeft.front.name == "Mt. Skyscrape");
+
+        mtsLeft.popFront();
+        assert(!mtsLeft.empty);
+        assert(mtsLeft.front.name == "Mt. Nowhere");
+
+        mtsLeft.popFront();
+        assert(mtsLeft.empty);
+    }
 }

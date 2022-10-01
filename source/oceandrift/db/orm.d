@@ -24,6 +24,7 @@ enum bool isEntityType(TEntity) = (
             || is(TEntity == class)
     )
     && is(ReturnType!((TEntity t) => t.id) == ulong)
+    && __traits(compiles, delegate(TEntity t) @safe { t.id = ulong(0); })
     );
 
 enum string tableName(alias TEntity) =
@@ -152,12 +153,25 @@ struct PreCollection(TEntity, DatabaseDriver)
         stmt.execute();
 
         debug assert(!stmt.empty);
+        debug assert(stmt.front.length == 1);
         return stmt.front[0];
     }
 
-    void delete_(DatabaseDriver)
+    BuiltQuery delete_()
     {
-        assert(0);
+        BuiltQuery bq = _query
+            .delete_()
+            .build!DatabaseDriver();
+        return bq;
+    }
+
+    void deleteVia(DatabaseDriver db)
+    {
+        BuiltQuery bq = this.delete_();
+
+        Statement stmt = db.prepareBuiltQuery(bq);
+        stmt.execute();
+        stmt.close();
     }
 
     PreCollection!(TEntity, DatabaseDriver) where(LogicalOperator logicalJunction = and, TComparisonOperator)(
@@ -377,18 +391,20 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
             if (isEntityType!TEntity)
     {
         enum Query q = table(tableName!TEntity).qb;
-        return PreCollection!(TEntity, DatabaseDriver)(q);
+        enum pc = PreCollection!(TEntity, DatabaseDriver)(q);
+        return pc;
     }
 
+    ///
     bool manyToOne(TEntityOne, TEntityMany)(TEntityMany many, out TEntityOne output)
             if (isEntityType!TEntityOne && isEntityType!TEntityMany)
     {
-        enum BuiltQuery q = table(tableName!TEntityOne).qb
+        enum BuiltQuery bq = table(tableName!TEntityOne).qb
                 .where("id", '=')
                 .select(columnNames!TEntityOne)
                 .build!DatabaseDriver();
 
-        Statement stmt = _db.prepareBuiltQuery(query);
+        Statement stmt = _db.prepareBuiltQuery(bq);
         stmt.bind(1, many.id);
         stmt.execute();
 
