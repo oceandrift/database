@@ -256,6 +256,7 @@ struct Token
         invalid = '\xFF', /// garbage, apparently something is broken should you encounter this type in an actual token
 
         column = 'c',
+        columnTable = 't',
         placeholder = '?',
         comparisonOperator = 'o', /// a [ComparisonOperator], for the actual operator see [Token.data.op]
 
@@ -293,6 +294,32 @@ inout(Table) table(inout string name) nothrow @nogc
 {
     return Table(name);
 }
+
+/++
+    Column identifier
+ +/
+struct Column
+{
+    string name;
+    Table table;
+}
+
+inout(Column) column(inout string name) nothrow @nogc
+{
+    return Column(name, Table(null));
+}
+
+inout(Column) column(inout string name, inout Table table) nothrow @nogc
+{
+    return Column(name, table);
+}
+
+inout(Column) column(inout Table table, inout string name) nothrow @nogc
+{
+    return Column(name, table);
+}
+
+alias col = column;
 
 /++
     Abstract WHERE clause
@@ -335,7 +362,7 @@ enum
 
 struct OrderingTerm
 {
-    string column;
+    Column column;
     OrderingSequence orderingSequence = OrderingSequence.asc;
 }
 
@@ -461,7 +488,7 @@ enum bool isComparisonOperator(T) = (
 /// ditto
 Query where(LogicalOperator logicalJunction = and, TComparisonOperator)(
     Query q,
-    string column,
+    Column column,
     TComparisonOperator op
 ) if (isComparisonOperator!TComparisonOperator)
 {
@@ -471,7 +498,9 @@ Query where(LogicalOperator logicalJunction = and, TComparisonOperator)(
     if ((q._where.tokens.length > 0) && (q._where.tokens[$ - 1].type != Token.Type.leftParenthesis))
         q._where.tokens ~= tokenLogicalJunction;
 
-    q._where.tokens ~= Token(Token.Type.column, Token.Data(column));
+    if (column.table.name !is null)
+        q._where.tokens ~= Token(Token.Type.columnTable, Token.Data(column.table.name));
+    q._where.tokens ~= Token(Token.Type.column, Token.Data(column.name));
 
     auto dataOp = Token.Data();
     dataOp.op = cast(ComparisonOperator) op;
@@ -487,9 +516,20 @@ Query where(LogicalOperator logicalJunction = and, TComparisonOperator)(
 }
 
 /// ditto
-Query where(LogicalOperator logicalJunction = and, TComparisonOperator, T)(
+Query where(LogicalOperator logicalJunction = and, TComparisonOperator)(
     Query q,
     string column,
+    TComparisonOperator op
+) if (isComparisonOperator!TComparisonOperator)
+{
+    pragma(inline, true);
+    return where!logicalJunction(q, col(column), op);
+}
+
+/// ditto
+Query where(LogicalOperator logicalJunction = and, TComparisonOperator, T)(
+    Query q,
+    Column column,
     TComparisonOperator op,
     T value
 ) @trusted // TODO: template constraint
@@ -497,6 +537,17 @@ Query where(LogicalOperator logicalJunction = and, TComparisonOperator, T)(
     q._where.preSet[q._where.placeholders] = value;
 
     return q.where!logicalJunction(column, op);
+}
+
+Query where(LogicalOperator logicalJunction = and, TComparisonOperator, T)(
+    Query q,
+    string column,
+    TComparisonOperator op,
+    T value
+)
+{
+    pragma(inline, true);
+    return where!logicalJunction(q, col(column), op, value);
 }
 
 /++
@@ -532,20 +583,32 @@ Query whereParentheses(LogicalOperator logicalJunction = and)(Query q, Query del
 template whereNot(bool logicalJunction = or, TComparisonOperator)
         if (isComparisonOperator!TComparisonOperator)
 {
-    Query whereNot(Query q, string column, TComparisonOperator op)
+    Query whereNot(Query q, Column column, TComparisonOperator op)
     {
         q._where ~= Token(Token.Type.not);
         q._where ~= Token(Token.Type.leftParenthesis);
-        q.where!(column, op);
+        q.where!logicalJunction(column, op);
         q._where ~= Token(Token.Type.rightParenthesis);
+    }
+
+    Query whereNot(Query q, Column column, TComparisonOperator op, DBValue value)
+    {
+        q._where ~= Token(Token.Type.not);
+        q._where ~= Token(Token.Type.leftParenthesis);
+        q.where!logicalJunction(column, op, value);
+        q._where ~= Token(Token.Type.rightParenthesis);
+    }
+
+    Query whereNot(Query q, string column, TComparisonOperator op)
+    {
+        pragma(inline, true);
+        return whereNot(q, col(column), op);
     }
 
     Query whereNot(Query q, string column, TComparisonOperator op, DBValue value)
     {
-        q._where ~= Token(Token.Type.not);
-        q._where ~= Token(Token.Type.leftParenthesis);
-        q.where!(column, op, value);
-        q._where ~= Token(Token.Type.rightParenthesis);
+        pragma(inline, true);
+        return whereNot(q, col(column), op, value);
     }
 }
 
@@ -562,10 +625,16 @@ template whereNot(bool logicalJunction = or, TComparisonOperator)
     q.orderBy("column", OrderingSequence.desc); // DESC, long form
     ---
  +/
-Query orderBy(Query q, string column, OrderingSequence orderingSequence = asc)
+Query orderBy(Query q, Column column, OrderingSequence orderingSequence = asc)
 {
     q._orderBy ~= OrderingTerm(column, orderingSequence);
     return q;
+}
+
+Query orderBy(Query q, string column, OrderingSequence orderingSequence = asc)
+{
+    pragma(inline, true);
+    return orderBy(q, col(column), orderingSequence);
 }
 
 /++
@@ -640,7 +709,7 @@ struct SelectExpression
     /++
         Column to select
      +/
-    string columnName;
+    Column column;
 
     /++
         Aggregate function to apply
@@ -676,7 +745,7 @@ enum Distinct distinct = Distinct.yes;
  +/
 SelectExpression avg(Distinct distinct = Distinct.no)(string column)
 {
-    return SelectExpression(column, AggregateFunction.avg, distinct);
+    return SelectExpression(col(column), AggregateFunction.avg, distinct);
 }
 
 /++
@@ -684,7 +753,7 @@ SelectExpression avg(Distinct distinct = Distinct.no)(string column)
  +/
 SelectExpression count(Distinct distinct = Distinct.no)(string column = "*")
 {
-    return SelectExpression(column, AggregateFunction.count, distinct);
+    return SelectExpression(col(column), AggregateFunction.count, distinct);
 }
 
 /++
@@ -692,7 +761,7 @@ SelectExpression count(Distinct distinct = Distinct.no)(string column = "*")
  +/
 SelectExpression max(Distinct distinct = Distinct.no)(string column)
 {
-    return SelectExpression(column, AggregateFunction.max, distinct);
+    return SelectExpression(col(column), AggregateFunction.max, distinct);
 }
 
 /++
@@ -700,7 +769,7 @@ SelectExpression max(Distinct distinct = Distinct.no)(string column)
  +/
 SelectExpression min(Distinct distinct = Distinct.no)(string column)
 {
-    return SelectExpression(column, AggregateFunction.min, distinct);
+    return SelectExpression(col(column), AggregateFunction.min, distinct);
 }
 
 /++
@@ -708,7 +777,7 @@ SelectExpression min(Distinct distinct = Distinct.no)(string column)
  +/
 SelectExpression sum(Distinct distinct = Distinct.no)(string column)
 {
-    return SelectExpression(column, AggregateFunction.sum, distinct);
+    return SelectExpression(col(column), AggregateFunction.sum, distinct);
 }
 
 /++
@@ -716,7 +785,7 @@ SelectExpression sum(Distinct distinct = Distinct.no)(string column)
  +/
 SelectExpression group_concat(Distinct distinct = Distinct.no)(string column)
 {
-    return SelectExpression(column, AggregateFunction.groupConcat, distinct);
+    return SelectExpression(col(column), AggregateFunction.groupConcat, distinct);
 }
 
 /++
@@ -749,10 +818,10 @@ struct Select
     Params:
         columns = Columns to select; either as strings or [SelectExpression]s
  +/
-Select select(Column...)(Query from, Column columns)
+Select select(ColumnV...)(Query from, ColumnV columns)
 {
     static if (columns.length == 0)
-        return Select(from, [SelectExpression("*")]);
+        return Select(from, [SelectExpression(col("*"))]);
     else
     {
         auto data = new SelectExpression[](columns.length);
@@ -760,14 +829,18 @@ Select select(Column...)(Query from, Column columns)
         static foreach (idx, col; columns)
         {
             static if (is(typeof(col) == string))
+                data[idx] = SelectExpression(oceandrift.db.dbal.v4.column(col));
+            else static if (is(typeof(col) == Column))
+            {
                 data[idx] = SelectExpression(col);
+            }
             else static if (is(typeof(col) == SelectExpression))
                 data[idx] = col;
             else
             {
                 enum colType = typeof(col).stringof;
                 static assert(
-                    is(typeof(col) == string) || is(typeof(col) == SelectExpression),
+                    0,
                     "Column identifiers must be strings, but type of parameter " ~ idx.to!string ~ " is `" ~ colType ~ '`'
                 );
             }

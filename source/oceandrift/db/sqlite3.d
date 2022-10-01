@@ -684,12 +684,21 @@ pure:
 
         sql ~= " WHERE";
 
+        Token.Type prev;
+
         foreach (Token t; where.tokens)
         {
             final switch (t.type) with (Token)
             {
-            case Type.column:
+            case Type.columnTable:
                 sql ~= ` "`;
+                (delegate() @trusted { sql ~= t.data.str.escapeIdentifier(); })();
+                sql ~= `".`;
+                break;
+            case Type.column:
+                if (prev != Type.columnTable)
+                    sql ~= ' ';
+                sql ~= '"';
                 (delegate() @trusted { sql ~= t.data.str.escapeIdentifier(); })();
                 sql ~= '"';
                 break;
@@ -721,6 +730,8 @@ pure:
             case Type.invalid:
                 assert(0, "Invalid SQL token in where clause");
             }
+
+            prev = t.type;
         }
     }
 
@@ -749,8 +760,14 @@ pure:
             if (idx > 0)
                 sql ~= ", ";
 
+            if (term.column.table.name !is null)
+            {
+                sql ~= '"';
+                sql ~= escapeIdentifier(term.column.table.name);
+                sql ~= `".`;
+            }
             sql ~= '"';
-            sql ~= escapeIdentifier(term.column);
+            sql ~= escapeIdentifier(term.column.name);
             sql ~= '"';
 
             if (term.orderingSequence == OrderingSequence.desc)
@@ -779,14 +796,21 @@ pure:
         if (se.distinct)
             sql ~= "DISTINCT ";
 
-        if (se.columnName == "*")
+        if (se.column.table.name !is null)
+        {
+            sql ~= '"';
+            sql ~= se.column.table.name;
+            sql ~= `".`;
+        }
+
+        if (se.column.name == "*")
         {
             sql ~= '*';
         }
         else
         {
             sql ~= '"';
-            sql ~= se.columnName.escapeIdentifier;
+            sql ~= se.column.name.escapeIdentifier;
             sql ~= '"';
         }
 

@@ -139,7 +139,7 @@ struct PreCollection(TEntity, DatabaseDriver)
     BuiltQuery aggregate(Distinct distinct = Distinct.no)(AggregateFunction aggr, string column)
     {
         BuiltQuery bq = _query
-            .select(SelectExpression(column, aggr, distinct))
+            .select(SelectExpression(col(column), aggr, distinct))
             .build!DatabaseDriver();
         return bq;
     }

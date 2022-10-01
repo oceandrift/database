@@ -635,4 +635,41 @@ public
 
         assert(bq2.sql == `SELECT * FROM "mountain" ORDER BY "height", "name" DESC, "location"`);
     }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("mountain").qb
+                .orderBy(column(table("mountain"), "height"))
+                .select()
+                .build!SQLite3();
+
+        assert(bq.sql == `SELECT * FROM "mountain" ORDER BY "mountain"."height"`);
+
+        enum BuiltQuery bq2 =
+            table("mountain").qb
+                .orderBy(column("height", table("mountain")), desc)
+                .select(
+                    column("id", table("mountain")),
+                    column("height", table("mountain")),
+                )
+                .build!SQLite3();
+
+        assert(
+            bq2.sql == `SELECT "mountain"."id", "mountain"."height" FROM "mountain" ORDER BY "mountain"."height" DESC`
+        );
+
+        enum BuiltQuery bq3 =
+            table("mountain").qb
+                .select(
+                    column("id", table("mountain")),
+                    column("height", table("mountain")),
+                    SelectExpression(column("height", table("mountain")), AggregateFunction.max),
+                    "name",
+                )
+                .build!SQLite3();
+
+        assert(
+            bq3.sql == `SELECT "mountain"."id", "mountain"."height", max("mountain"."height"), "name" FROM "mountain"`);
+    }
 }
