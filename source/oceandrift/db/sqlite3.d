@@ -30,12 +30,13 @@ private enum
 private void enforce(
     const int actual,
     lazy string msg,
+    lazy uint extendedResultCode = -1,
     ResultCode expected = ResultCode.ok,
     string file = __FILE__,
     size_t line = __LINE__) pure
 {
     if (actual != expected)
-        throw new SQLiteX(cast(ResultCode) actual, msg, file, line);
+        throw new SQLiteX(cast(ResultCode) actual, msg, extendedResultCode, file, line);
 }
 
 class SQLiteX : Exception
@@ -45,12 +46,14 @@ class SQLiteX : Exception
     public
     {
         ResultCode code;
+        uint extendedCode;
     }
 
-    this(ResultCode code, string msg, string file = __FILE__, size_t line = __LINE__)
+    this(ResultCode code, string msg, uint extendedCode, string file = __FILE__, size_t line = __LINE__)
     {
         super(msg, file, line);
         this.code = code;
+        this.extendedCode = extendedCode;
     }
 }
 
@@ -416,6 +419,7 @@ final class SQLite3 : DatabaseDriverSpec
         {
             immutable connected = sqlite3_open_v2(_filename.toStringz, &_handle, int(_mode), null);
             enforce(connected, "Connection failed");
+            enforce(_handle.sqlite3_extended_result_codes(1), "Enabling SQLite's extended result codes failed");
             _mode = mode;
         }
 
@@ -430,7 +434,20 @@ final class SQLite3 : DatabaseDriverSpec
         {
             char* errorMsg;
             immutable status = sqlite3_exec(_handle, sql.toStringz, null, null, &errorMsg);
-            enforce(status, cast(immutable)(errorMsg.fromStringz));
+            try
+            {
+                enforce(
+                    status,
+                    errorMsg.fromStringz.idup,
+                    _handle.sqlite3_extended_errcode(),
+                    ResultCode.ok,
+                );
+            }
+            finally
+            {
+                if (errorMsg !is null)
+                    sqlite3_free(errorMsg);
+            }
         }
     }
 }
@@ -456,7 +473,19 @@ final class SQLite3Statement : Statement
         // If nByte is positive, then it is the number of bytes read from zSql.
         // No zero-terminated required.
         immutable prepared = _dbHandle.sqlite3_prepare_v2(sql.ptr, cast(int) sql.length, &_stmtHandle, null);
-        enforce(prepared, "Preparation failed.");
+        auto errorMsg = _dbHandle.sqlite3_errmsg();
+        try
+        {
+            enforce(
+                prepared,
+                "Preparation failed:\n" ~ errorMsg.fromStringz.idup,
+                _dbHandle.sqlite3_extended_errcode(),
+            );
+        }
+        finally
+        {
+            sqlite3_free(errorMsg);
+        }
     }
 
     public

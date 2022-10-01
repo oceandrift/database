@@ -327,14 +327,6 @@ public
                     .select("*").build!SQLite3;
             assert(b.sql == `SELECT * FROM "misc" WHERE "id" < ? AND ( "age" > ? OR "age" < ? )`);
 
-            /*auto c = table("misc").qb
-                .where("age", '>', DBValue(60))
-                .select("*"); //.where("id", '>').where("name", like);
-
-            auto d = table("misc").qb
-                .where("age", '>', 60)
-                .select(count("*")); //.where("id", '>').where("name", like);*/
-
             enum e1 = table("misc").qb
                     .where("age", '>', 0)
                     .limit(12);
@@ -352,6 +344,33 @@ public
             ex.print();
             assert(0);
         }
+    }
+
+    unittest
+    {
+        auto db = new SQLite3(":memory:");
+
+        db.connect();
+        scope (exit)
+            db.close();
+
+        db.execute(`CREATE TABLE "demo" ("id" INTEGER PRIMARY KEY, "name" TEXT NOT NULL)`);
+        db.execute(`INSERT INTO "demo"("name") VALUES("Walter"),("Andrei"),("Atila")`);
+
+        Statement stmt = table("demo").qb
+            .limit(1)
+            .select("id")
+            .build!SQLite3()
+            .prepare(db);
+
+        scope (exit)
+            stmt.close();
+
+        stmt.execute();
+        assert(!stmt.empty);
+        stmt.popFront();
+        assert(stmt.empty);
+
     }
 
     unittest

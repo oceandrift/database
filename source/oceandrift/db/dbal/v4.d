@@ -184,6 +184,12 @@ Statement prepareBuiltQuery(DatabaseDriver)(DatabaseDriver db, BuiltQuery builtQ
     return stmt;
 }
 
+/// ditto
+Statement prepare(DatabaseDriver)(BuiltQuery builtQuery, DatabaseDriver db)
+{
+    return db.prepareBuiltQuery(builtQuery);
+}
+
 // there’s no “impure” keyword :(
 
 pure:

@@ -443,3 +443,8 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         pragma(msg, "/====");
     }
 }
+
+mixin template EntityID()
+{
+    ulong id;
+}

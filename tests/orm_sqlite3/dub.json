@@ -1,10 +1,10 @@
 {
 	"name": "oceandrift-database-orm_sqlite3-tests",
-    "sourceFiles": [ "tests.d" ],
-    "importPaths": [ "." ],
-    "targetPath": "bin",
-    "dependencies": {
-        "oceandrift-database:orm": { "path": "../../" },
-        "oceandrift-database:sqlite3": { "path": "../../" }
-    }
+	"sourceFiles": [ "tests.d" ],
+	"importPaths": [ "." ],
+	"targetPath": "bin",
+	"dependencies": {
+		"oceandrift-database:orm": { "path": "../../" },
+		"oceandrift-database:sqlite3": { "path": "../../" }
+	}
 }
