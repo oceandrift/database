@@ -691,4 +691,123 @@ public
         assert(
             bq3.sql == `SELECT "mountain"."id", "mountain"."height", max("mountain"."height"), "name" FROM "mountain"`);
     }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("book_tag").qb
+                .join(table("tag"), "id", "tag_id")
+                .where("book_id", '=')
+                .select()
+                .build!SQLite3();
+        assert(
+            bq.sql == `SELECT * FROM "book_tag" JOIN "tag" ON "tag"."id" = "tag_id" WHERE "book_id" = ?`
+        );
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("book").qb
+                .join!leftOuter(
+                    column(table("author"), "id"),
+                    column(table("book"), "author_id"),
+                )
+                .orderBy(column(table("book"), "name"))
+                .select()
+                .build!SQLite3();
+        assert(
+            bq.sql == `SELECT * FROM "book" LEFT OUTER JOIN "author" ON "author"."id" = "book"."author_id" ORDER BY "book"."name"`
+        );
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("book").qb
+                .join!inner(
+                    column(table("author"), "id"),
+                    column(table("book"), "author_id"),
+                )
+                .orderBy(column(table("book"), "publishing_date"), desc)
+                .select()
+                .build!SQLite3();
+
+        assert(
+            bq.sql == `SELECT * FROM "book" JOIN "author" ON "author"."id" = "book"."author_id" ORDER BY "book"."publishing_date" DESC`
+        );
+    }
+
+    unittest
+    {
+        enum book = table("book");
+        enum author = table("author");
+        enum city = table("city");
+
+        enum BuiltQuery bq =
+            book.qb
+                .join(
+                    col(author, "id"),
+                    col(book, "author_id"),
+                )
+                .join(
+                    col(city, "id"),
+                    col(author, "city_id"),
+                )
+                .select(
+                    col(book, "name"),
+                    col(city, "name"),
+                )
+                .build!SQLite3();
+
+        assert(
+            bq.sql ==
+                `SELECT "book"."name", "city"."name" FROM "book"`
+                ~ ` JOIN "author" ON "author"."id" = "book"."author_id"`
+                ~ ` JOIN "city" ON "city"."id" = "author"."city_id"`
+        );
+    }
+
+    unittest
+    {
+        enum BuiltQuery bq =
+            table("x").qb
+                .join!cross(
+                    col(table("a"), null),
+                    col(table("x"), null),
+                )
+                .select()
+                .build!SQLite3();
+
+        assert(bq.sql == `SELECT * FROM "x" CROSS JOIN "a"`, bq.sql);
+    }
+
+    @system unittest
+    {
+        try
+        {
+            table("x").qb.join(
+                col(table("a"), null),
+                col(table("b"), "z"),
+            );
+            assert(0);
+        }
+        catch (Error e)
+        {
+            // Expected
+        }
+
+        try
+        {
+            table("x").qb.join(
+                col(table("a"), "z"),
+                col(table("b"), null),
+            );
+            assert(0);
+        }
+        catch (Error e)
+        {
+            // Expected
+        }
+    }
 }

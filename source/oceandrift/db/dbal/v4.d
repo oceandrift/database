@@ -382,6 +382,47 @@ struct Limit
 }
 
 /++
+    JOIN clause abstraction
+ +/
+struct Join
+{
+    /++
+        JOIN types
+     +/
+    enum Type
+    {
+        invalid = '\xFF', ///
+        inner = 'i', ///
+        leftOuter = 'L', ///
+        rightOuter = 'R', ///
+        fullOuter = 'F', ///
+        cross = 'C' ///
+    }
+
+    Type type;
+    Column source;
+    Column target;
+}
+
+enum : Join.Type
+{
+    /// [INNER] JOIN
+    inner = Join.Type.inner,
+
+    /// LEFT [OUTER] JOIN
+    leftOuter = Join.Type.leftOuter,
+
+    /// RIGHT [OUTER] JOIN
+    rightOuter = Join.Type.rightOuter,
+
+    /// FULL [OUTER] JOIN
+    fullOuter = Join.Type.fullOuter,
+
+    /// CROSS JOIN
+    cross = Join.Type.cross,
+}
+
+/++
     SQL SELECT/UPDATE/DELETE query abstraction
 
     This is the secondary base type for query building.
@@ -400,6 +441,7 @@ struct Query
     Table table;
 
 private:
+    Join[] _join;
     Where _where;
     OrderingTerm[] _orderBy;
     Limit _limit;
@@ -411,9 +453,11 @@ private:
 struct CompilerQuery
 {
 @safe pure nothrow @nogc:
+
     this(const Query q)
     {
         this.table = q.table;
+        this.join = q._join;
         this.where = q._where;
         this.orderBy = q._orderBy;
         this.limit = q._limit;
@@ -425,6 +469,11 @@ struct CompilerQuery
             Table to query
          +/
         Table table;
+
+        /++
+            JOIN clause
+         +/
+        Join[] join;
 
         /++
             WHERE clause
@@ -459,6 +508,60 @@ Query complexQueryBuilder(const string table) nothrow @nogc
 
 /// ditto
 alias qb = complexQueryBuilder;
+
+/++
+    Appends a JOIN statement to a query
+
+    ---
+    // … FROM book JOIN author ON author.id = author_id …
+    Query q = table("book").qb.join(
+        table("author"),
+        "id",
+        "author_id"
+    );
+    // or:
+    Query q = table("book").qb.join(
+        column(table("author"), "id"),
+        "author_id"
+    );
+
+    enum book = table("book");
+    enum author = table("author");
+    Query q = book.qb.join(
+        column(author, "id"),
+        column(book, "author_id")
+    );
+    // --> … FROM book JOIN author ON author.id = book.author_id …
+    ---
+
+    Params:
+        joinTarget = determines which table to join with (and which column to use in the join constraint (“ON”))
+ +/
+Query join(Join.Type type = Join.Type.inner)(Query q, const Column joinTarget, const Column sourceColumn)
+in (!((joinTarget.name is null) ^ (sourceColumn.name is null)))
+{
+    q._join ~= Join(type, sourceColumn, joinTarget);
+    return q;
+}
+
+/// ditto
+Query join(Join.Type type = Join.Type.inner)(Query q, const Column joinTarget, const string sourceColumn)
+{
+    pragma(inline, true);
+    return join!type(q, joinTarget, col(sourceColumn));
+}
+
+/// ditto
+Query join(Join.Type type = Join.Type.inner)(
+    Query q,
+    const Table joinTarget,
+    const string joinOnTargetColumn,
+    const string onSourceColumn
+)
+{
+    pragma(inline, true);
+    return join!type(q, col(joinTarget, joinOnTargetColumn), col(onSourceColumn));
+}
 
 enum bool isComparisonOperator(T) = (
         is(T == ComparisonOperator)
@@ -1004,6 +1107,7 @@ struct Delete
         .delete_()
     ;
     // DELETE FROM "mountain" WHERE "height" IS NULL
+    ---
  +/
 Delete delete_(Query query)
 {

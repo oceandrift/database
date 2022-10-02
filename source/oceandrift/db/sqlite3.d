@@ -304,6 +304,7 @@ final class SQLite3 : DatabaseDriverSpec
             sql ~= '"';
 
             const query = CompilerQuery(select.query);
+            query.join.joinToSQL(sql);
             query.where.whereToSQL(sql);
             query.orderByToSQL(sql);
             query.limitToSQL(sql);
@@ -317,6 +318,7 @@ final class SQLite3 : DatabaseDriverSpec
 
         static BuiltQuery build(const Update update)
         in (update.columns.length >= 1)
+        in (CompilerQuery(update.query).join.length == 0)
         {
             auto sql = appender!string("UPDATE");
             sql ~= ` "`;
@@ -335,6 +337,7 @@ final class SQLite3 : DatabaseDriverSpec
 
             const query = CompilerQuery(update.query);
             query.where.whereToSQL(sql);
+            query.orderByToSQL(sql);
             query.limitToSQL(sql);
 
             return BuiltQuery(
@@ -395,6 +398,7 @@ final class SQLite3 : DatabaseDriverSpec
         }
 
         static BuiltQuery build(const Delete delete_)
+        in (CompilerQuery(delete_.query).join.length == 0)
         {
             auto sql = appender!string(`DELETE FROM "`);
             sql ~= delete_.query.table.name.escapeIdentifier();
@@ -403,6 +407,7 @@ final class SQLite3 : DatabaseDriverSpec
             const query = CompilerQuery(delete_.query);
 
             query.where.whereToSQL(sql);
+            query.orderByToSQL(sql);
             query.limitToSQL(sql);
 
             return BuiltQuery(
@@ -473,19 +478,13 @@ final class SQLite3Statement : Statement
         // If nByte is positive, then it is the number of bytes read from zSql.
         // No zero-terminated required.
         immutable prepared = _dbHandle.sqlite3_prepare_v2(sql.ptr, cast(int) sql.length, &_stmtHandle, null);
-        auto errorMsg = _dbHandle.sqlite3_errmsg();
-        try
-        {
-            enforce(
-                prepared,
-                "Preparation failed:\n" ~ errorMsg.fromStringz.idup,
+
+        enforce(
+            prepared,
+            "Preparation failed:\n" ~ _dbHandle.sqlite3_errmsg()
+                .fromStringz.idup, // “The application does not need to worry about freeing the result.”
                 _dbHandle.sqlite3_extended_errcode(),
-            );
-        }
-        finally
-        {
-            sqlite3_free(errorMsg);
-        }
+        );
     }
 
     public
@@ -706,7 +705,60 @@ private
 {
 pure:
 
-    void whereToSQL(const Where where, Appender!string sql)
+    void joinToSQL(const Join[] joinClause, ref Appender!string sql)
+    {
+        foreach (join; joinClause)
+        {
+            final switch (join.type) with (Join)
+            {
+            case Type.invalid:
+                assert(0, "Join.Type.invalid");
+
+            case Type.inner:
+                sql ~= ` JOIN "`;
+                break;
+
+            case Type.leftOuter:
+                sql ~= ` LEFT OUTER JOIN "`;
+                break;
+
+            case Type.rightOuter:
+                sql ~= ` RIGHT OUTER JOIN "`;
+                break;
+
+            case Type.fullOuter:
+                sql ~= ` FULL OUTER JOIN "`;
+                break;
+
+            case Type.cross:
+                sql ~= ` CROSS JOIN "`;
+                break;
+            }
+
+            sql ~= escapeIdentifier(join.target.table.name);
+            sql ~= `"`;
+
+            if (join.target.name is null)
+                return;
+
+            sql ~= ` ON "`;
+            sql ~= escapeIdentifier(join.target.table.name);
+            sql ~= `"."`;
+            sql ~= escapeIdentifier(join.target.name);
+            sql ~= `" = "`;
+
+            if (join.source.table.name !is null)
+            {
+                sql ~= escapeIdentifier(join.source.table.name);
+                sql ~= `"."`;
+            }
+
+            sql ~= escapeIdentifier(join.source.name);
+            sql ~= '"';
+        }
+    }
+
+    void whereToSQL(const Where where, ref Appender!string sql)
     {
         if (where.tokens.length == 0)
             return;
