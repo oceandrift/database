@@ -238,7 +238,6 @@ static assert(isEntityType!Mountain);
 
 unittest
 {
-
     auto db = new SQLite3(":memory:", OpenMode.create);
     db.connect();
     scope (exit)
@@ -432,5 +431,115 @@ unittest
 
         mtsLeft.popFront();
         assert(mtsLeft.empty);
+    }
+}
+
+unittest  // many2one + one2many
+{
+    auto db = new SQLite3(":memory:", OpenMode.create);
+    db.connect();
+    scope (exit)
+        db.close();
+
+    db.execute(
+        `CREATE TABLE "author" (
+            "id" INTEGER PRIMARY KEY,
+            "name" TEXT,
+            "birthday" DATETIME
+        );`
+    );
+
+    db.execute(
+        `CREATE TABLE "book" (
+            "id" INTEGER PRIMARY KEY,
+            "name" TEXT,
+            "published" DATE,
+            "author_id" INTEGER UNSIGNED REFERENCES author(id)
+        );`
+    );
+
+    auto em = EntityManager!SQLite3(db);
+
+    struct Author
+    {
+        string name;
+        mixin EntityID;
+    }
+
+    struct Book
+    {
+        string name;
+        Date published;
+        ulong author_id;
+        mixin EntityID;
+    }
+
+    {
+        auto adam = Author("Adam D. Ruppe");
+        em.save(adam);
+        auto someone = Author("Some One");
+        em.save(someone);
+        auto nobody = Author("No Body");
+        em.save(nobody);
+
+        em.store(Book("D Cookbook", Date(2014, 5, 26), adam.id));
+        em.store(Book("Funny Things", Date(2016, 2, 4), someone.id));
+        em.store(Book("Very funny Things", Date(2017, 3, 3), someone.id));
+        em.store(Book("Fancy Things", Date(2017, 9, 9), someone.id));
+        em.store(Book("Other Things", Date(2018, 12, 20), someone.id));
+        em.store(Book("Stories", Date(2012, 7, 1), nobody.id));
+        em.store(Book("Stories, vol.2", Date(2018, 4, 8), nobody.id));
+        em.store(Book("Stories, vol.3", Date(2019, 8, 10), nobody.id));
+        em.store(Book("Much more Stories", Date(2020, 11, 11), nobody.id));
+    }
+
+    {
+        Book b;
+        immutable bookFound = em.get(4, b);
+        assert(bookFound);
+
+        Author a;
+        immutable authorFound = em.manyToOne!Author(b, a);
+        assert(authorFound);
+        assert(a.name == "Some One");
+
+        assert(a.id == b.author_id);
+        assert(a.name == "Some One");
+    }
+
+    {
+        auto authorsFound = em.find!Author.where("name", '=', "No Body").selectVia(db);
+        assert(!authorsFound.empty);
+
+        Author a = authorsFound.front;
+        assert(a.name == "No Body");
+
+        authorsFound.popFront();
+        assert(authorsFound.empty);
+
+        auto pcBooks = em.oneToMany!Book(a);
+
+        immutable ulong cntBooks = pcBooks.countVia(db);
+        assert(cntBooks == 4);
+
+        EntityCollection!Book booksSince2019 = pcBooks
+            .where("published", '>', Date(2019, 1, 1))
+            .orderBy("published")
+            .selectVia(db);
+        assert(!booksSince2019.empty);
+
+        assert(booksSince2019.front.author_id == a.id);
+        assert(booksSince2019.front.published.year >= 2019);
+        assert(booksSince2019.front.name == "Stories, vol.3");
+
+        booksSince2019.popFront();
+        assert(!booksSince2019.empty);
+
+        assert(booksSince2019.front.author_id == a.id);
+        assert(booksSince2019.front.published.year >= 2019);
+        assert(booksSince2019.front.name == "Much more Stories");
+
+        booksSince2019.popFront();
+        assert(booksSince2019.empty);
     }
 }

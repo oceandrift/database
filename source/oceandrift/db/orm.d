@@ -405,7 +405,8 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
                 .build!DatabaseDriver();
 
         Statement stmt = _db.prepareBuiltQuery(bq);
-        stmt.bind(1, many.id);
+        mixin("immutable ulong oneID = many." ~ tableName!TEntityOne ~ "_id;");
+        stmt.bind(0, oneID);
         stmt.execute();
 
         if (stmt.empty)
@@ -421,6 +422,21 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
     {
         pragma(inline, true);
         return manyToOne(source, toOne);
+    }
+
+    static PreCollection!(TEntityMany, DatabaseDriver) oneToMany(
+        TEntityMany,
+        TEntityOne,
+    )(TEntityOne source) if (isEntityType!TEntityMany && isEntityType!TEntityOne)
+    {
+        enum string foreignKeyColumn = tableName!TEntityOne ~ "_id";
+
+        enum Query q = table(tableName!TEntityMany).qb.where(foreignKeyColumn, '=');
+        enum pcT = PreCollection!(TEntityMany, DatabaseDriver)(q);
+
+        auto pc = pcT;
+        pc._query.updatePreSetWhereValue(0, DBValue(source.id));
+        return pc;
     }
 
     static void _pragma(TEntity)()
@@ -446,5 +462,5 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
 
 mixin template EntityID()
 {
-    ulong id;
+    ulong id = 0;
 }

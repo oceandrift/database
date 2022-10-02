@@ -366,15 +366,15 @@ interface Statement
 
             In the end it’s a choice between two evils (as in: inconsistencies):
             $(LIST
-                * As we can’t change SQL and the database, those are always going to be 0-index.
+                * As we can’t change SQL and the database, those are always going to be 1-index.
                 * Query results will always be 0-indexed,
                   unless we’d wrap them into a magic type that would make them inconsistent with the rest of the D ecosystem
                   (or use AAs – this option also comes with its own pitfalls and disadvantages).
                 * Dynamic parameters are the only thing we can realistically choose to have either zero- or one-indexed.
-                  They can now be either inconsistent with query results or the database.
+                  They can now be inconsistent with either query results or the database.
             )
 
-            Data structures in D (like in most programming languages) are 0-indexed.
+            Data structures in D are 0-indexed (like in most programming languages).
             So I chose to go with this for dynamic parameters on the D side as well.
 
             $(BLOCKQUOTE
@@ -577,11 +577,11 @@ bool isNull(DBValue value)
 
 /++
     Returns the value stored in the DBValue
-    casted to the specified type `T` if possible
+    casted (or converted) to the specified type `T` if possible
 
     Throws:
-        MatchException on error
-+/
+        MatchException on failure
+ +/
 T getAs(T)(DBValue value) pure
 {
     static if (is(T == bool))
@@ -666,6 +666,20 @@ T getAs(T)(DBValue value) pure
         return value.tryMatch!(
             (ref const string v) => v,
             (ref const const(ubyte)[] v) => cast(string) v.idup,
+        );
+
+    else static if (is(T == Date))
+        return value.tryMatch!(
+            (ref const Date v) => v,
+            (ref const DateTime v) => v.date,
+            (ref const string v) => Date.fromISOExtString(v),
+        );
+
+    else static if (is(T == TimeOfDay))
+        return value.tryMatch!(
+            (ref const TimeOfDay v) => v,
+            (ref const DateTime v) => v.timeOfDay,
+            (ref const string v) => TimeOfDay.fromISOExtString(v),
         );
 
     else

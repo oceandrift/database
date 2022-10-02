@@ -344,6 +344,11 @@ public @safe pure nothrow @nogc:
     }
 }
 
+void updatePreSetWhereValue(ref Query q, int index, DBValue value) @trusted
+{
+    q._where.preSet[index] = value;
+}
+
 /++
     Ascending vs. Descending
  +/
@@ -722,7 +727,7 @@ template whereNot(bool logicalJunction = or, TComparisonOperator)
 }
 
 /++
-    Appends a ORDER BY clause to a query
+    Appends an ORDER BY clause to a query
 
     ---
     q.orderBy("column");                        // ASCending order is the default
