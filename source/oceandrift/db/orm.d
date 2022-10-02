@@ -30,6 +30,26 @@ enum bool isEntityType(TEntity) = (
 enum string tableName(alias TEntity) =
     __traits(identifier, TEntity).toLower;
 
+enum string joinTableName(alias TEntity1, alias TEntity2) =
+    joinTableNameImpl!(TEntity1, TEntity2)();
+
+private string joinTableNameImpl(alias TEntity1, alias TEntity2)()
+{
+    import std.string : cmp;
+
+    string name1 = tableName!TEntity1;
+    string name2 = tableName!TEntity2;
+
+    int x = cmp(name1, name2);
+
+    // dfmt off
+    return (x < 0)
+        ? name1 ~ '_' ~ name2
+        : name2 ~ '_' ~ name1
+    ;
+    // dfmt on
+}
+
 enum auto columnNames(alias TEntity) =
     aliasSeqOf!(columnNamesImpl!TEntity());
 
@@ -330,7 +350,8 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         static foreach (int idx, column; columnNamesNoID!TEntity)
             mixin("stmt.bind(idx, cast(const) entity." ~ column ~ ");");
 
-        stmt.bind(cast(int) columnNamesNoID!TEntity.length, entity.id);
+        enum int idParamN = columnNamesNoID!TEntity.length;
+        stmt.bind(idParamN, entity.id);
 
         stmt.execute();
     }
@@ -422,6 +443,77 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
     {
         pragma(inline, true);
         return manyToOne(source, toOne);
+    }
+
+    static PreCollection!(TEntityTarget, DatabaseDriver) manyToMany(
+        TEntityTarget,
+        TEntitySource,
+        string joinTableName_ = joinTableName!(TEntitySource, TEntityTarget)
+    )(TEntitySource source)
+            if (isEntityType!TEntityTarget && isEntityType!TEntitySource)
+    {
+        enum Table joinTable = table(joinTableName_);
+
+        enum string targetName = tableName!TEntityTarget;
+        enum Column columnForeignKeyTarget = col(joinTable, targetName ~ "_id");
+
+        enum string sourceName = tableName!TEntitySource;
+        enum Column columnForeignKeySource = col(joinTable, sourceName ~ "_id");
+
+        enum Column columnPrimaryKeyTarget = col(table(targetName), "id");
+
+        enum Query q =
+            joinTable.qb
+                .join(
+                    columnPrimaryKeyTarget,
+                    columnForeignKeyTarget
+                )
+                .where(columnForeignKeySource, '=');
+        enum pcT = PreCollection!(TEntityTarget, DatabaseDriver)(q);
+
+        auto pc = pcT;
+        pc._query.updatePreSetWhereValue(0, DBValue(source.id));
+        return pc;
+    }
+
+    void manyToManyAssign(
+        TEntity1,
+        TEntity2,
+        string joinTableName_ = joinTableName!(TEntity1, TEntity2),
+    )(TEntity1 e1, TEntity2 e2) if (isEntityType!TEntity1 && isEntityType!TEntity2)
+    {
+        enum Table joinTable = table(joinTableName_);
+        enum string e2Col = tableName!TEntity2 ~ "_id";
+        enum string e1Col = tableName!TEntity1 ~ "_id";
+
+        enum BuiltQuery bq = joinTable.insert(e1Col, e2Col).build!DatabaseDriver();
+
+        Statement stmt = _db.prepareBuiltQuery(bq);
+        stmt.bind(0, e1.id);
+        stmt.bind(1, e2.id);
+        stmt.execute();
+    }
+
+    void manyToManyUnassign(
+        TEntity1,
+        TEntity2,
+        string joinTableName_ = joinTableName!(TEntity1, TEntity2),
+    )(TEntity1 e1, TEntity2 e2) if (isEntityType!TEntity1 && isEntityType!TEntity2)
+    {
+        enum Table joinTable = table(joinTableName!(TEntity1, TEntity2));
+        enum string e2Col = tableName!TEntity2 ~ "_id";
+        enum string e1Col = tableName!TEntity1 ~ "_id";
+
+        enum BuiltQuery bq = joinTable.qb
+                .where(e1Col, '=')
+                .where(e2Col, '=')
+                .delete_()
+                .build!DatabaseDriver();
+
+        Statement stmt = _db.prepareBuiltQuery(bq);
+        stmt.bind(0, e1.id);
+        stmt.bind(1, e2.id);
+        stmt.execute();
     }
 
     static PreCollection!(TEntityMany, DatabaseDriver) oneToMany(

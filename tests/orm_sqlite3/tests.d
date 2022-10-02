@@ -543,3 +543,103 @@ unittest  // many2one + one2many
         assert(booksSince2019.empty);
     }
 }
+
+unittest  // many2many
+{
+    auto db = new SQLite3(":memory:", OpenMode.create);
+    db.connect();
+    scope (exit)
+        db.close();
+
+    struct Thing
+    {
+        string name;
+        mixin EntityID;
+    }
+
+    struct Tag
+    {
+        string name;
+        mixin EntityID;
+    }
+
+    assert(joinTableName!(Thing, Tag) == "tag_thing");
+    assert(joinTableName!(Tag, Thing) == "tag_thing");
+
+    db.execute(
+        `CREATE TABLE "thing" (
+            "id" INTEGER PRIMARY KEY,
+            "name" TEXT
+        );`
+    );
+
+    db.execute(
+        `CREATE TABLE "tag" (
+            "id" INTEGER PRIMARY KEY,
+            "name" TEXT
+        );`
+    );
+
+    db.execute(
+        `CREATE TABLE "tag_thing" (
+            "tag_id" INTEGER REFERENCES tag(id),
+            "thing_id" INTEGER REFERENCES thing(id),
+            PRIMARY KEY ("tag_id", "thing_id")
+        );`
+    );
+
+    auto em = EntityManager!SQLite3(db);
+
+    auto fruit = Tag("Fruit");
+    em.save(fruit);
+    auto berry = Tag("Berry");
+    em.save(berry);
+    auto red = Tag("red");
+    em.save(red);
+
+    auto apple = Thing("Apple");
+    em.save(apple);
+    em.manyToManyAssign(fruit, apple);
+    em.manyToManyAssign(red, apple);
+    auto pear = Thing("Pear");
+    em.save(pear);
+    em.manyToManyAssign(fruit, pear);
+    auto plum = Thing("Plum");
+    em.save(plum);
+    em.manyToManyAssign(fruit, plum);
+    auto banana = Thing("Banana");
+    em.save(banana);
+    em.manyToManyAssign(fruit, banana);
+    auto raspberry = Thing("Raspberry");
+    em.save(raspberry);
+    em.manyToManyAssign(raspberry, fruit);
+    em.manyToManyAssign(raspberry, berry);
+    auto blueberry = Thing("Blueberry");
+    em.save(blueberry);
+    em.manyToManyAssign(blueberry, fruit);
+    em.manyToManyAssign(blueberry, berry);
+    auto strawberry = Thing("Strawberry");
+    em.save(strawberry);
+    em.manyToManyAssign(strawberry, fruit);
+    em.manyToManyAssign(strawberry, berry);
+    em.manyToManyAssign(strawberry, red);
+    auto book = Thing("Book");
+    em.save(book);
+
+    assert(em.manyToMany!Tag(apple).countVia(db) == 2);
+    assert(em.manyToMany!Tag(pear).countVia(db) == 1);
+    assert(em.manyToMany!Tag(strawberry).countVia(db) == 3);
+    assert(em.manyToMany!Tag(book).countVia(db) == 0);
+
+    assert(em.manyToMany!Thing(fruit).countVia(db) == 7);
+    assert(em.manyToMany!Thing(berry).countVia(db) == 3);
+    assert(em.manyToMany!Thing(red).countVia(db) == 2);
+
+    {
+        em.manyToManyAssign(book, fruit); // actually wrong…
+        assert(em.manyToMany!Tag(book).countVia(db) == 1);
+
+        em.manyToManyUnassign(book, fruit); // …so unassign
+        assert(em.manyToMany!Tag(book).countVia(db) == 0);
+    }
+}
