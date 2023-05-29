@@ -678,7 +678,7 @@ Query where(LogicalOperator logicalJunction = and, TComparisonOperator, T)(
     ;
     ---
  +/
-Query whereParentheses(LogicalOperator logicalJunction = and)(Query q, Query delegate(scope Query q) @safe pure conditions)
+Query whereParentheses(LogicalOperator logicalJunction = and)(Query q, Query delegate(return scope Query q) @safe pure conditions)
 {
     enum Token tokenLogicalJunction =
         (logicalJunction == or) ? Token(Token.Type.or) : Token(Token.Type.and);
