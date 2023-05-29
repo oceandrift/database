@@ -209,7 +209,7 @@ struct PreCollection(TEntity, DatabaseDriver)
     }
 
     PreCollection!(TEntity, DatabaseDriver) whereParentheses(LogicalOperator logicalJunction = and)(
-        Query delegate(scope Query q) @safe pure conditions)
+        Query delegate(Query q) @safe pure conditions)
     {
         return typeof(this)(_query.whereParentheses!logicalJunction(conditions));
     }
