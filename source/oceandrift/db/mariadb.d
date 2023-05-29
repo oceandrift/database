@@ -25,6 +25,8 @@ module oceandrift.db.mariadb;
 
 import mysql.safe;
 import oceandrift.db.dbal.driver;
+import oceandrift.db.dbal.v4;
+import std.array : appender, Appender;
 import std.conv : to;
 
 @safe:
@@ -40,7 +42,7 @@ alias MySQLRow = mysql.safe.Row;
     See_Also:
         https://code.dlang.org/packages/mysql-native
  +/
-final class MariaDBDatabaseDriver : DatabaseDriverSpec
+final class MariaDB : DatabaseDriverSpec
 {
 @safe:
 
@@ -158,7 +160,142 @@ final class MariaDBDatabaseDriver : DatabaseDriverSpec
             return this._connection;
         }
     }
+
+    public pure  // Query Compiler
+    {
+        static BuiltQuery build(const Select select)
+        {
+            auto sql = appender!string("SELECT");
+
+            foreach (idx, se; select.columns)
+            {
+                if (idx > 0)
+                    sql ~= ',';
+
+                se.toSQL(sql);
+            }
+
+            sql ~= " FROM `";
+            sql ~= select.query.table.name.escapeIdentifier();
+            sql ~= '`';
+
+            const query = CompilerQuery(select.query);
+            query.join.joinToSQL(sql);
+            query.where.whereToSQL(sql);
+            query.orderByToSQL(sql);
+            query.limitToSQL(sql);
+
+            return BuiltQuery(
+                sql.data,
+                PlaceholdersMeta(query.where.placeholders),
+                PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
+            );
+        }
+
+        static BuiltQuery build(const Update update)
+        in (update.columns.length >= 1)
+        in (CompilerQuery(update.query).join.length == 0)
+        {
+            auto sql = appender!string("UPDATE");
+            sql ~= " `";
+            sql ~= update.query.table.name.escapeIdentifier();
+            sql ~= "` SET";
+
+            foreach (idx, value; update.columns)
+            {
+                if (idx > 0)
+                    sql ~= ',';
+
+                sql ~= " `";
+                sql ~= value.escapeIdentifier;
+                sql ~= "` = ?";
+            }
+
+            const query = CompilerQuery(update.query);
+            query.where.whereToSQL(sql);
+            query.orderByToSQL(sql);
+            query.limitToSQL(sql);
+
+            return BuiltQuery(
+                sql.data,
+                PlaceholdersMeta(query.where.placeholders),
+                PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
+            );
+        }
+
+        static BuiltQuery build(const Insert query)
+        in (
+            (query.columns.length > 1)
+            || (query.rowCount == 1)
+        )
+        {
+            auto sql = appender!string("INSERT INTO `");
+            sql ~= escapeIdentifier(query.table.name);
+
+            if (query.columns.length == 0)
+            {
+                sql ~= "` DEFAULT VALUES";
+            }
+            else
+            {
+                sql ~= "` (";
+
+                foreach (idx, column; query.columns)
+                {
+                    if (idx > 0)
+                        sql ~= ", ";
+
+                    sql ~= '`';
+                    sql ~= escapeIdentifier(column);
+                    sql ~= '`';
+                }
+
+                sql ~= ") VALUES";
+
+                for (uint n = 0; n < query.rowCount; ++n)
+                {
+                    if (n > 0)
+                        sql ~= ",";
+
+                    sql ~= " (";
+                    if (query.columns.length > 0)
+                    {
+                        sql ~= '?';
+
+                        if (query.columns.length > 1)
+                            for (size_t i = 1; i < query.columns.length; ++i)
+                                sql ~= ",?";
+                    }
+                    sql ~= ')';
+                }
+            }
+
+            return BuiltQuery(sql.data);
+        }
+
+        static BuiltQuery build(const Delete delete_)
+        in (CompilerQuery(delete_.query).join.length == 0)
+        {
+            auto sql = appender!string("DELETE FROM `");
+            sql ~= delete_.query.table.name.escapeIdentifier();
+            sql ~= '`';
+
+            const query = CompilerQuery(delete_.query);
+
+            query.where.whereToSQL(sql);
+            query.orderByToSQL(sql);
+            query.limitToSQL(sql);
+
+            return BuiltQuery(
+                sql.data,
+                PlaceholdersMeta(query.where.placeholders),
+                PreSets(query.where.preSet, query.limit.preSet, query.limit.offsetPreSet)
+            );
+        }
+    }
 }
+
+alias MariaDBDatabaseDriver = MariaDB;
 
 private mixin template bindImpl(T)
 {
@@ -359,5 +496,244 @@ DBValue mysqlToDBAL(MySQLVal mysql)
         return DBValue(*mysql.get!(const(ubyte[])*));
     case Kind.TimestampRef:
         return DBValue(mysql.get!(const(Timestamp)*).rep);
+    }
+}
+
+private pure
+{
+    void joinToSQL(const Join[] joinClause, ref Appender!string sql)
+    {
+        foreach (join; joinClause)
+        {
+            final switch (join.type) with (Join)
+            {
+            case Type.invalid:
+                assert(0, "Join.Type.invalid");
+
+            case Type.inner:
+                sql ~= " JOIN `";
+                break;
+
+            case Type.leftOuter:
+                sql ~= " LEFT OUTER JOIN `";
+                break;
+
+            case Type.rightOuter:
+                sql ~= " RIGHT OUTER JOIN `";
+                break;
+
+            case Type.fullOuter:
+                assert(false, "MariaDB does not support FULL OUTER JOINs");
+                //sql ~= " FULL OUTER JOIN `"`;
+                //break;
+
+            case Type.cross:
+                sql ~= " CROSS JOIN `";
+                break;
+            }
+
+            sql ~= escapeIdentifier(join.target.table.name);
+            sql ~= '`';
+
+            if (join.target.name is null)
+                return;
+
+            sql ~= " ON `";
+            sql ~= escapeIdentifier(join.target.table.name);
+            sql ~= "`.`";
+            sql ~= escapeIdentifier(join.target.name);
+            sql ~= "` = `";
+
+            if (join.source.table.name !is null)
+            {
+                sql ~= escapeIdentifier(join.source.table.name);
+                sql ~= "`.`";
+            }
+
+            sql ~= escapeIdentifier(join.source.name);
+            sql ~= '`';
+        }
+    }
+
+    void whereToSQL(const Where where, ref Appender!string sql)
+    {
+        if (where.tokens.length == 0)
+            return;
+
+        sql ~= " WHERE";
+
+        Token.Type prev;
+
+        foreach (Token t; where.tokens)
+        {
+            final switch (t.type) with (Token)
+            {
+            case Type.columnTable:
+                sql ~= " `";
+                (delegate() @trusted { sql ~= t.data.str.escapeIdentifier(); })();
+                sql ~= "`.";
+                break;
+            case Type.column:
+                if (prev != Type.columnTable)
+                    sql ~= ' ';
+                sql ~= '`';
+                (delegate() @trusted { sql ~= t.data.str.escapeIdentifier(); })();
+                sql ~= '`';
+                break;
+            case Type.placeholder:
+                sql ~= " ?";
+                break;
+            case Type.comparisonOperator:
+                sql ~= t.data.op.toSQL;
+                break;
+
+            case Type.and:
+                sql ~= " AND";
+                break;
+            case Type.or:
+                sql ~= " OR";
+                break;
+
+            case Type.not:
+                sql ~= " NOT";
+                break;
+
+            case Type.leftParenthesis:
+                sql ~= " (";
+                break;
+            case Type.rightParenthesis:
+                sql ~= " )";
+                break;
+
+            case Type.invalid:
+                assert(0, "Invalid SQL token in where clause");
+            }
+
+            prev = t.type;
+        }
+    }
+
+    void limitToSQL(CompilerQuery q, ref Appender!string sql)
+    {
+        if (!q.limit.enabled)
+            return;
+
+        sql ~= " LIMIT ?";
+
+        if (!q.limit.offsetEnabled)
+            return;
+
+        sql ~= " OFFSET ?";
+    }
+
+    void orderByToSQL(CompilerQuery q, ref Appender!string sql)
+    {
+        if (q.orderBy.length == 0)
+            return;
+
+        sql ~= " ORDER BY ";
+
+        foreach (idx, OrderingTerm term; q.orderBy)
+        {
+            if (idx > 0)
+                sql ~= ", ";
+
+            if (term.column.table.name !is null)
+            {
+                sql ~= '`';
+                sql ~= escapeIdentifier(term.column.table.name);
+                sql ~= "`.";
+            }
+            sql ~= '`';
+            sql ~= escapeIdentifier(term.column.name);
+            sql ~= '`';
+
+            if (term.orderingSequence == OrderingSequence.desc)
+                sql ~= " DESC";
+        }
+    }
+
+    void toSQL(SelectExpression se, ref Appender!string sql)
+    {
+        sql ~= ' ';
+
+        enum switchCase(string aggr) = `case ` ~ aggr ~ `: sql ~= "` ~ aggr ~ `("; break;`;
+
+        final switch (se.aggregateFunction) with (AggregateFunction)
+        {
+            mixin(switchCase!"avg");
+            mixin(switchCase!"count");
+            mixin(switchCase!"max");
+            mixin(switchCase!"min");
+            mixin(switchCase!"sum");
+            mixin(switchCase!"group_concat");
+        case none:
+            break;
+        }
+
+        if (se.distinct)
+            sql ~= "DISTINCT ";
+
+        if (se.column.table.name !is null)
+        {
+            sql ~= '`';
+            sql ~= se.column.table.name;
+            sql ~= "`.";
+        }
+
+        if (se.column.name == "*")
+        {
+            sql ~= '*';
+        }
+        else
+        {
+            sql ~= '`';
+            sql ~= se.column.name.escapeIdentifier;
+            sql ~= '`';
+        }
+
+        if (se.aggregateFunction != AggregateFunction.none)
+            sql ~= ')';
+    }
+
+    string toSQL(ComparisonOperator op)
+    {
+        final switch (op) with (ComparisonOperator)
+        {
+        case invalid:
+            assert(0, "Invalid comparison operator");
+
+        case equals:
+            return " =";
+        case notEquals:
+            return " <>";
+        case lessThan:
+            return " <";
+        case greaterThan:
+            return " >";
+        case lessThanOrEquals:
+            return " <=";
+        case greaterThanOrEquals:
+            return " >=";
+        case in_:
+            return " IN";
+        case notIn:
+            return " NOT IN";
+        case like:
+            return " LIKE";
+        case notLike:
+            return " NOT LIKE";
+        case isNull:
+            return " IS NULL";
+        case isNotNull:
+            return " IS NOT NULL";
+        }
+    }
+
+    string escapeIdentifier(string tableOrColumn)
+    {
+        import std.string : replace;
+
+        return tableOrColumn.replace('`', "``");
     }
 }

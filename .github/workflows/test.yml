@@ -42,3 +42,7 @@ jobs:
       - name: "Test ORM: SQLite3"
         working-directory: ./tests/orm_sqlite3
         run: dub -q test
+
+      - name: "Test ORM: MariaDB"
+        working-directory: ./tests/orm_mariadb
+        run: dub -q test
