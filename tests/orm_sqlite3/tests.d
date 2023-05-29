@@ -318,7 +318,7 @@ unittest
     }
 
     {
-        BuiltQuery bq = em
+        enum BuiltQuery bq = em
             .find!Mountain()
             .aggregate(AggregateFunction.min, "height");
 

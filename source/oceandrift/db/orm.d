@@ -14,10 +14,16 @@ public import oceandrift.db.dbal.v4 : asc, desc, distinct, where, whereNot, wher
 
 @safe:
 
+/++
+    Determines whether a $(I Database Driver) is compatible with the ORM
+ +/
 enum bool isORMCompatible(Driver) =
     isDatabaseDriver!Driver
     && isQueryCompiler!Driver;
 
+/++
+    Determines whether a type is an entity type suitable for ORM use
+ +/
 enum bool isEntityType(TEntity) = (
         (
             is(TEntity == struct)
@@ -27,9 +33,15 @@ enum bool isEntityType(TEntity) = (
     && __traits(compiles, delegate(TEntity t) @safe { t.id = ulong(0); })
     );
 
+/++
+    Determines the associated table name for an entity type
+ +/
 enum string tableName(alias TEntity) =
     __traits(identifier, TEntity).toLower;
 
+/++
+    Determines the associated join table name for two entity types
+ +/
 enum string joinTableName(alias TEntity1, alias TEntity2) =
     joinTableNameImpl!(TEntity1, TEntity2)();
 
@@ -50,9 +62,18 @@ private string joinTableNameImpl(alias TEntity1, alias TEntity2)()
     // dfmt on
 }
 
+/++
+    Returns:
+        The column names associated with the provided entity type
+ +/
 enum auto columnNames(alias TEntity) =
     aliasSeqOf!(columnNamesImpl!TEntity());
 
+/++
+    Returns:
+        The column names associated with the provided entity type
+        except for the ID column
+ +/
 enum auto columnNamesNoID(alias TEntity) =
     aliasSeqOf!(columnNamesImpl!(TEntity, false)());
 
@@ -71,6 +92,9 @@ private auto columnNamesImpl(TEntity, bool includeID = true)()
     return columnNames;
 }
 
+/++
+    Transforms a result row into an instance of the specified entity type
+ +/
 TEntity toEntity(TEntity)(Row row)
 {
     static if (is(TEntity == class))
@@ -86,11 +110,19 @@ TEntity toEntity(TEntity)(Row row)
     return e;
 }
 
+/++
+    Transforms a statement’s result rows into a collection of entities
+ +/
 EntityCollection!TEntity toEntities(TEntity)(Statement stmt) pure nothrow @nogc
 {
     return EntityCollection!TEntity(stmt);
 }
 
+/++
+    Collection of entities (retrieved through a query)
+
+    Lazy $(I Input Range) implementation.
+ +/
 struct EntityCollection(TEntity) if (isEntityType!TEntity)
 {
 @safe:
@@ -105,26 +137,76 @@ struct EntityCollection(TEntity) if (isEntityType!TEntity)
         _stmt = stmt;
     }
 
+    ///
     bool empty()
     {
         return _stmt.empty;
     }
 
+    ///
     TEntity front()
     {
         return _stmt.front.toEntity!TEntity();
     }
 
+    ///
     void popFront()
     {
         _stmt.popFront();
     }
 }
 
+/++
+    ORM Query Builder
+
+    ---
+    // pre-compiled query (CTFE)
+    enum bqMountains = em.find!Mountain()
+        .orderBy("height")
+        .limit(25)
+        .select();
+
+    // execute (at runtime)
+    auto mountains = bqMountains.via(db);
+    foreach (mt; mountains) {
+        // […]
+    }
+    ---
+
+    For each member function returning a [BuiltPreCollection],
+    there’s also a shorthand “via” function.
+    The “via” variant executes the built query via the provided database connection.
+
+    ---
+    auto mountains = em.find!Mountain()
+        .orderBy("height")
+        .limit(25)
+        .selectVia(db);
+
+    foreach (mt; mountains) {
+        // […]
+    }
+    ---
+ +/
 struct PreCollection(TEntity, DatabaseDriver)
         if (isEntityType!TEntity && isORMCompatible!DatabaseDriver)
 {
 @safe:
+
+    /++
+        SELECTs the requested entities from the database
+
+        ---
+        auto mountains = em.find!Mountain()
+            .orderBy("height")
+            .limit(25)
+            .selectVia(db);
+
+        foreach (mt; mountains) {
+            // […]
+        }
+        ---
+     +/
     BuiltPreCollection!TEntity select()
     {
         BuiltQuery bq = _query
@@ -133,11 +215,19 @@ struct PreCollection(TEntity, DatabaseDriver)
         return BuiltPreCollection!TEntity(bq);
     }
 
+    /// ditto
     EntityCollection!TEntity selectVia(DatabaseDriver db)
     {
         return this.select().via(db);
     }
 
+    /++
+        COUNTs the number of requested entities from the database
+
+        ---
+        ulong nMountains = em.find!Mountain().countVia(db);
+        ---
+     +/
     BuiltQuery count()
     {
         BuiltQuery bq = _query
@@ -146,6 +236,7 @@ struct PreCollection(TEntity, DatabaseDriver)
         return bq;
     }
 
+    /// ditto
     ulong countVia(DatabaseDriver db)
     {
         BuiltQuery bq = this.count();
@@ -157,6 +248,13 @@ struct PreCollection(TEntity, DatabaseDriver)
         return stmt.front[0].getAs!ulong();
     }
 
+    /++
+        SELECTs aggregate data for the requested entities from the database
+
+        ---
+        DBValue maxHeight = em.find!Mountain().aggregateVia(AggregateFunction.max, "height", db);
+        ---
+     +/
     BuiltQuery aggregate(Distinct distinct = Distinct.no)(AggregateFunction aggr, string column)
     {
         BuiltQuery bq = _query
@@ -165,6 +263,7 @@ struct PreCollection(TEntity, DatabaseDriver)
         return bq;
     }
 
+    /// ditto
     DBValue aggregateVia(Distinct distinct = Distinct.no)(AggregateFunction aggr, string column, DatabaseDriver db)
     {
         BuiltQuery bq = this.aggregate!(distinct)(aggr, column);
@@ -177,6 +276,15 @@ struct PreCollection(TEntity, DatabaseDriver)
         return stmt.front[0];
     }
 
+    /++
+        DELETEs the requested entities from the database
+
+        ---
+        em.find!Mountain()
+            .where("height", '<', 3000)
+            .deleteVia(db);
+        ---
+     +/
     BuiltQuery delete_()
     {
         BuiltQuery bq = _query
@@ -185,6 +293,7 @@ struct PreCollection(TEntity, DatabaseDriver)
         return bq;
     }
 
+    /// ditto
     void deleteVia(DatabaseDriver db)
     {
         BuiltQuery bq = this.delete_();
@@ -194,6 +303,17 @@ struct PreCollection(TEntity, DatabaseDriver)
         stmt.close();
     }
 
+    /++
+        Specifies the filter criteria for the requested data
+
+        Adds a WHERE clause to the query.
+
+        ---
+        auto children = em.find!Person()
+            .where("age", ComparisonOperator.lessThan, 18)
+            .selectVia(db);
+        ---
+     +/
     PreCollection!(TEntity, DatabaseDriver) where(LogicalOperator logicalJunction = and, TComparisonOperator)(
         string column, TComparisonOperator op, const DBValue value)
             if (isComparisonOperator!TComparisonOperator)
@@ -201,6 +321,7 @@ struct PreCollection(TEntity, DatabaseDriver)
         return typeof(this)(_query.where!logicalJunction(column, op, value));
     }
 
+    /// ditto
     PreCollection!(TEntity, DatabaseDriver) where(LogicalOperator logicalJunction = and, TComparisonOperator, T)(
         string column, TComparisonOperator op, const T value)
             if (isComparisonOperator!TComparisonOperator && isDBValueCompatible!T)
@@ -208,22 +329,30 @@ struct PreCollection(TEntity, DatabaseDriver)
         return typeof(this)(_query.where!logicalJunction(column, op, value));
     }
 
+    /// ditto
     PreCollection!(TEntity, DatabaseDriver) whereParentheses(LogicalOperator logicalJunction = and)(
         Query delegate(Query q) @safe pure conditions)
     {
         return typeof(this)(_query.whereParentheses!logicalJunction(conditions));
     }
 
+    /++
+        Specifies a sorting criteria for the requested data
+     +/
     PreCollection!(TEntity, DatabaseDriver) orderBy(string column, OrderingSequence orderingSequence = asc)
     {
         return typeof(this)(_query.orderBy(column, orderingSequence));
     }
 
+    /++
+        LIMITs the number of entities to retrieve
+     +/
     PreCollection!(TEntity, DatabaseDriver) limit(ulong limit)
     {
         return typeof(this)(_query.limit(limit));
     }
 
+    /// ditto
     PreCollection!(TEntity, DatabaseDriver) limit(ulong limit, int offset)
     {
         return typeof(this)(_query.limit(limit, offset));
@@ -233,10 +362,14 @@ private:
     Query _query;
 }
 
+/++
+    Compiled query statement to use with the ORM
+ +/
 struct BuiltPreCollection(TEntity) if (isEntityType!TEntity)
 {
 @safe pure nothrow @nogc:
 
+    ///
     string sql()
     {
         return _query.sql;
@@ -246,6 +379,11 @@ private:
     BuiltQuery _query;
 }
 
+/++
+    Retrieves and maps data to the corresponding entity type
+
+    See_Also: [via]
+ +/
 EntityCollection!TEntity map(TEntity, DatabaseDriver)(DatabaseDriver db, BuiltPreCollection!TEntity builtPreCollection)
         if (isDatabaseDriver!DatabaseDriver && isEntityType!TEntity)
 {
@@ -253,6 +391,9 @@ EntityCollection!TEntity map(TEntity, DatabaseDriver)(DatabaseDriver db, BuiltPr
     return via(builtPreCollection, db);
 }
 
+/++
+    Executes a built query via the provided database connection
+ +/
 EntityCollection!TEntity via(TEntity, DatabaseDriver)(
     BuiltPreCollection!TEntity builtPreCollection, DatabaseDriver db)
         if (isDatabaseDriver!DatabaseDriver && isEntityType!TEntity)
@@ -262,6 +403,9 @@ EntityCollection!TEntity via(TEntity, DatabaseDriver)(
     return EntityCollection!TEntity(stmt);
 }
 
+/++
+    Loads an entity from the database
+ +/
 bool get(TEntity, DatabaseDriver)(DatabaseDriver db, ulong id, out TEntity output)
         if (isEntityType!TEntity)
 {
@@ -281,6 +425,11 @@ bool get(TEntity, DatabaseDriver)(DatabaseDriver db, ulong id, out TEntity outpu
     return true;
 }
 
+/++
+    Entity Manager
+
+    Primary object of the ORM
+ +/
 struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
 {
 @safe:
@@ -290,11 +439,20 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         DatabaseDriver _db;
     }
 
+    ///
     this(DatabaseDriver db)
     {
         _db = db;
     }
 
+    /++
+        Loads the requested entity (#ID) from the database
+
+        ---
+        Mountain mt;
+        bool found = em.get!Mountain(4, mt);
+        ---
+     +/
     bool get(TEntity)(ulong id, out TEntity output) if (isEntityType!TEntity)
     {
         enum BuiltQuery query = table(tableName!TEntity).qb
@@ -313,6 +471,9 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         return true;
     }
 
+    /++
+        Updates or stores the provided entity in the database
+     +/
     void save(TEntity)(ref TEntity entity) if (isEntityType!TEntity)
     {
         if (entity.id == 0)
@@ -321,6 +482,15 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
             this.update(entity);
     }
 
+    /++
+        Stores the provided entity in the database
+
+        Does not set the entity ID. Returns it instead.
+        This allows you to use the entity as a template.
+
+        See_Also:
+            [EntityManager.save|save]
+     +/
     ulong store(TEntity)(const TEntity entity) if (isEntityType!TEntity)
     {
         enum BuiltQuery query = table(tableName!TEntity)
@@ -337,6 +507,12 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         return _db.lastInsertID().getAs!ulong;
     }
 
+    /++
+        Updates the provided entity in the database
+
+        See_Also:
+            [EntityManager.save|save]
+     +/
     void update(TEntity)(const TEntity entity) if (isEntityType!TEntity)
     in (entity.id != 0)
     {
@@ -356,6 +532,9 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         stmt.execute();
     }
 
+    /++
+        Removes (deletes) the provided entity from the database
+     +/
     void remove(TEntity)(ulong id) if (isEntityType!TEntity)
     {
         enum BuiltQuery query = table(tableName!TEntity).qb
@@ -368,6 +547,7 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         stmt.execute();
     }
 
+    /// ditto
     void remove(TEntity)(TEntity entity) if (isEntityType!TEntity)
     {
         return this.remove!TEntity(entity.id);
@@ -408,6 +588,11 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         return EntityCollection!TEntity(stmt);
     }
 
+    /++
+        Finds entites from the database
+
+        Query building starting point.
+     +/
     static PreCollection!(TEntity, DatabaseDriver) find(TEntity)()
             if (isEntityType!TEntity)
     {
@@ -445,6 +630,7 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         return manyToOne(source, toOne);
     }
 
+    ///
     static PreCollection!(TEntityTarget, DatabaseDriver) manyToMany(
         TEntityTarget,
         TEntitySource,
@@ -476,6 +662,9 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         return pc;
     }
 
+    /++
+        Assigns two entities with a many-to-many relation to each other
+     +/
     void manyToManyAssign(
         TEntity1,
         TEntity2,
@@ -494,6 +683,9 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         stmt.execute();
     }
 
+    /++
+        Deletes the association from each other of two entities with a many-to-many relation
+     +/
     void manyToManyUnassign(
         TEntity1,
         TEntity2,
@@ -516,6 +708,7 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         stmt.execute();
     }
 
+    ///
     static PreCollection!(TEntityMany, DatabaseDriver) oneToMany(
         TEntityMany,
         TEntityOne,
@@ -531,6 +724,7 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
         return pc;
     }
 
+    // debugging helper
     static void _pragma(TEntity)()
     {
         pragma(msg, "==== EntityManager._pragma!(" ~ TEntity.stringof ~ "):");
@@ -552,6 +746,19 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
     }
 }
 
+/++
+    Mixin template to add the entity ID member to a type
+
+    ---
+    struct MyEntity {
+        mixin EntityID;
+    }
+    ---
+
+    $(TIP
+        You don’t have to use this, but it might help with reduction of boilerplate code.
+    )
+ +/
 mixin template EntityID()
 {
     ulong id = 0;

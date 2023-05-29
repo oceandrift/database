@@ -8,8 +8,18 @@
 
     …or well, almost: Different database implementations will still use different SQL dialects for their queries.
 
-    […]
-    returns a so-called $(I Prepared Statement) compiled from the provided SQL code.
+    For safety and simplicity reasons, the interface is built around the concept of so-called $(I Prepared Statements).
+    [DatabaseDriverSpec.prepare|db.prepare] returns a $(I Prepared Statement) compiled from the provided SQL code.
+
+    In those cases where you only want to modify the schema (DDL), talk to the DB server or similar
+    and you don’t expect to retrieve an actual result, [DatabaseDriverSpec.execute|db.execute] does the job.
+
+    $(WARNING
+        Don’t ever feed user-provided data into [DatabaseDriverSpec.execute|db.execute()] or you might end up
+        vulnerable to SQL injections.
+
+        This function is only intended for executing ready-made DCL, DDL or TCL statements.
+    )
 
 
     ### Examples
@@ -141,7 +151,7 @@
     Beware a user may call [DatabaseDriver.connect] later of course.
 
     If the underlying database supports toggling “auto commit” mode,
-    this functionality should be provided via [DatabaseDriverSpec.autoCommit(bool)].
+    this functionality should be provided via [DatabaseDriverSpec.autoCommit].
     There’s also a corresponding getter method.
 
     Manual transaction control is done through:
@@ -211,6 +221,7 @@
         * Convert column values to a compatible type of the [DBValue] tagged algebraic (“union”)
         * [Row] is just a struct that wraps an array of [DBValue]s.
             (This approach leads to better readable error messages than an plain alias.)
+    )
 
     Similar to [DatabaseDriverSpec] there’s a [Statement.close] method.
     Finalize/close the underlying prepared statement and do any necessary cleanup.
