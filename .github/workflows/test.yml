@@ -3,11 +3,11 @@ on: [push, pull_request]
 
 jobs:
   test:
-    name: Dub Tests
+    name: DUB Tests
     strategy:
       matrix:
         os: [ubuntu-latest]
-        dc: [dmd-latest, ldc-latest, ldc-1.24.0, ldc-1.30.0]
+        dc: [dmd-latest, ldc-latest, ldc-1.30.0]
 
     runs-on: ${{ matrix.os }}
     steps:
