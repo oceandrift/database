@@ -304,7 +304,7 @@ unittest
         Statement stmt = db.prepareBuiltQuery(qCntCT);
         stmt.execute();
         immutable cnt2 = stmt.front[0].getAs!ulong;
-        assert(cnt == 2);
+        assert(cnt2 == 2);
     }
 
     {
