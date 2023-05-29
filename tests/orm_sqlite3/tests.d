@@ -110,7 +110,7 @@ unittest
     {
         EntityCollection!Person ec = em
             .find!Person()
-            .whereParentheses((Query q) => q
+            .whereParentheses(q => q
                     .where("age", ComparisonOperator.greaterThanOrEquals, 60)
             )
             .select()
