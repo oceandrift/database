@@ -10,6 +10,7 @@ import std.traits;
 import oceandrift.db.dbal.driver;
 import oceandrift.db.dbal.v4;
 
+///
 public import oceandrift.db.dbal.v4 : asc, desc, distinct, where, whereNot, whereParentheses;
 
 @safe:
@@ -63,6 +64,52 @@ private string joinTableNameImpl(alias TEntity1, alias TEntity2)()
 }
 
 /++
+    Determines the associated column name for a field of an entity type
+ +/
+enum columnName(string fieldName) = columnNameImpl(fieldName);
+
+///
+unittest
+{
+    assert(columnName!"name" == "name");
+    assert(columnName!"user_id" == "user_id");
+
+    assert(columnName!"firstName" == "first_name");
+    assert(columnName!"LastName" == "last_name");
+
+    assert(columnName!"userID" == "user_id");
+    assert(columnName!"canEditPosts" == "can_edit_posts");
+    assert(columnName!"isHTTPS" == "is_https");
+    assert(columnName!"isHTTPS_URL" == "is_https_url");
+}
+
+private string columnNameImpl(string fieldName)
+{
+    import std.ascii : isUpper, toLower;
+
+    string output = "";
+    bool previousWasUpper = false;
+
+    foreach (size_t idx, char c; fieldName)
+    {
+        if (c.isUpper)
+        {
+            if (!previousWasUpper && (idx > 0) && (output[$ - 1] != '_'))
+                output ~= '_';
+
+            output ~= c.toLower;
+            previousWasUpper = true;
+            continue;
+        }
+
+        previousWasUpper = false;
+        output ~= c;
+    }
+
+    return output[];
+}
+
+/++
     Returns:
         The column names associated with the provided entity type
  +/
@@ -77,16 +124,27 @@ enum auto columnNames(alias TEntity) =
 enum auto columnNamesNoID(alias TEntity) =
     aliasSeqOf!(columnNamesImpl!(TEntity, false)());
 
-private auto columnNamesImpl(TEntity, bool includeID = true)()
+enum fieldNames(alias TEntity) =
+    aliasSeqOf!(columnNamesImpl!(TEntity, true, false)());
+
+enum fieldNamesNoID(alias TEntity) =
+    aliasSeqOf!(columnNamesImpl!(TEntity, false, false)());
+
+private auto columnNamesImpl(TEntity, bool includeID = true, bool toColumnNames = true)()
 {
     string[] columnNames = [];
 
     static foreach (idx, field; FieldNameTuple!TEntity)
     {
-        static if (!isDBValueCompatible!(Fields!TEntity[idx]))
-            static assert(0, "Column not serializable to DBValue");
-        else static if (includeID || (field.toLower != "id"))
-            columnNames ~= field.toLower;
+        static assert(isDBValueCompatible!(Fields!TEntity[idx]), "Column not serializable to DBValue");
+
+        static if (includeID || (field.toLower != "id"))
+        {
+            static if (toColumnNames)
+                columnNames ~= columnName!field;
+            else
+                columnNames ~= field;
+        }
     }
 
     return columnNames;
@@ -104,8 +162,8 @@ TEntity toEntity(TEntity)(Row row)
     else
         static assert(0, "faulty template constraint implementation.");
 
-    static foreach (idx, name; columnNames!TEntity)
-        mixin("e." ~ name ~ " = row[idx].getAs!(typeof(e." ~ name ~ "));");
+    static foreach (idx, name; fieldNames!TEntity)
+        mixin("e." ~ name) = row[idx].getAs!(typeof(mixin("e." ~ name)));
 
     return e;
 }
@@ -499,8 +557,8 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
 
         Statement stmt = _db.prepareBuiltQuery(query);
 
-        static foreach (int idx, column; columnNamesNoID!TEntity)
-            mixin("stmt.bind(idx, cast(const) entity." ~ column ~ ");");
+        static foreach (int idx, column; fieldNamesNoID!TEntity)
+            stmt.bind(idx, mixin("cast(const) entity." ~ column));
 
         stmt.execute();
 
@@ -611,7 +669,7 @@ struct EntityManager(DatabaseDriver) if (isORMCompatible!DatabaseDriver)
                 .build!DatabaseDriver();
 
         Statement stmt = _db.prepareBuiltQuery(bq);
-        mixin("immutable ulong oneID = many." ~ tableName!TEntityOne ~ "_id;");
+        immutable ulong oneID = mixin("many." ~ tableName!TEntityOne ~ "ID");
         stmt.bind(0, oneID);
         stmt.execute();
 

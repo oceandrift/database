@@ -470,7 +470,7 @@ unittest  // many2one + one2many
     {
         string name;
         Date published;
-        ulong author_id;
+        ulong authorID;
         mixin EntityID;
     }
 
@@ -503,7 +503,7 @@ unittest  // many2one + one2many
         assert(authorFound);
         assert(a.name == "Some One");
 
-        assert(a.id == b.author_id);
+        assert(a.id == b.authorID);
         assert(a.name == "Some One");
     }
 
@@ -528,14 +528,14 @@ unittest  // many2one + one2many
             .selectVia(db);
         assert(!booksSince2019.empty);
 
-        assert(booksSince2019.front.author_id == a.id);
+        assert(booksSince2019.front.authorID == a.id);
         assert(booksSince2019.front.published.year >= 2019);
         assert(booksSince2019.front.name == "Stories, vol.3");
 
         booksSince2019.popFront();
         assert(!booksSince2019.empty);
 
-        assert(booksSince2019.front.author_id == a.id);
+        assert(booksSince2019.front.authorID == a.id);
         assert(booksSince2019.front.published.year >= 2019);
         assert(booksSince2019.front.name == "Much more Stories");
 
