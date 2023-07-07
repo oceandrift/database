@@ -1123,7 +1123,7 @@ Delete delete_(Query query)
 
 private struct _PlaceholdersMeta
 {
-    size_t where;
+    int where;
 }
 
 ///

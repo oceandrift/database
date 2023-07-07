@@ -385,6 +385,30 @@ unittest
     }
 
     {
+        enum BuiltPreCollection!Mountain bpc = em
+            .find!Mountain()
+            .where("height", '<')
+            .orderBy("height")
+            .select();
+
+        PreparedCollection!Mountain pc = bpc.prepareCollection(db);
+        pc.bind(0, 3000);
+        EntityCollection!Mountain ec = pc.via(db);
+        assert(!ec.empty);
+
+        const Mountain m1 = ec.front;
+        assert(m1.height == 1200);
+
+        ec.popFront();
+        assert(!ec.empty);
+        const Mountain m2 = ec.front;
+        assert(m2.name == "K2010");
+
+        ec.popFront();
+        assert(ec.empty);
+    }
+
+    {
         EntityCollection!Mountain ec = em
             .find!Mountain()
             .orderBy("height", desc)

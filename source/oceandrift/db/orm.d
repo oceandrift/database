@@ -388,6 +388,14 @@ struct PreCollection(TEntity, DatabaseDriver)
     }
 
     /// ditto
+    PreCollection!(TEntity, DatabaseDriver) where(LogicalOperator logicalJunction = and, TComparisonOperator)(
+        string column, TComparisonOperator op)
+            if (isComparisonOperator!TComparisonOperator)
+    {
+        return typeof(this)(_query.where!logicalJunction(column, op, null));
+    }
+
+    /// ditto
     PreCollection!(TEntity, DatabaseDriver) whereParentheses(LogicalOperator logicalJunction = and)(
         Query delegate(Query q) @safe pure conditions)
     {
@@ -437,6 +445,26 @@ private:
     BuiltQuery _query;
 }
 
+struct PreparedCollection(TEntity) if (isEntityType!TEntity)
+{
+@safe:
+
+    void bind(T)(int index, const T value)
+    {
+        _statement.bind(index, value);
+    }
+
+private:
+    Statement _statement;
+}
+
+PreparedCollection!TEntity prepareCollection(TEntity, DatabaseDriver)(
+    BuiltPreCollection!TEntity builtPreCollection, DatabaseDriver db)
+        if (isDatabaseDriver!DatabaseDriver && isEntityType!TEntity)
+{
+    return PreparedCollection!TEntity(db.prepareBuiltQuery(builtPreCollection._query));
+}
+
 /++
     Retrieves and maps data to the corresponding entity type
 
@@ -459,6 +487,17 @@ EntityCollection!TEntity via(TEntity, DatabaseDriver)(
     Statement stmt = db.prepareBuiltQuery(builtPreCollection._query);
     stmt.execute();
     return EntityCollection!TEntity(stmt);
+}
+
+/++
+    Executes a prepared statement via the provided database connection to fetch data as entity collection
+ +/
+EntityCollection!TEntity via(TEntity, DatabaseDriver)(
+    PreparedCollection!TEntity preparedCollection, DatabaseDriver db)
+        if (isDatabaseDriver!DatabaseDriver && isEntityType!TEntity)
+{
+    preparedCollection._statement.execute();
+    return EntityCollection!TEntity(preparedCollection._statement);
 }
 
 /++
