@@ -399,7 +399,7 @@ unittest
 
         PreparedCollection!Mountain pc = bpc.prepareCollection(db);
         pc.bind(0, 3000);
-        EntityCollection!Mountain ec = pc.via(db);
+        EntityCollection!Mountain ec = pc.execute();
         assert(!ec.empty);
 
         const Mountain m1 = ec.front;

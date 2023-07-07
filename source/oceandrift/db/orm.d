@@ -445,13 +445,22 @@ private:
     BuiltQuery _query;
 }
 
+///
 struct PreparedCollection(TEntity) if (isEntityType!TEntity)
 {
 @safe:
 
+    ///
     void bind(T)(int index, const T value)
     {
         _statement.bind(index, value);
+    }
+
+    ///
+    EntityCollection!TEntity execute()
+    {
+        _statement.execute();
+        return EntityCollection!TEntity(_statement);
     }
 
 private:
@@ -487,17 +496,6 @@ EntityCollection!TEntity via(TEntity, DatabaseDriver)(
     Statement stmt = db.prepareBuiltQuery(builtPreCollection._query);
     stmt.execute();
     return EntityCollection!TEntity(stmt);
-}
-
-/++
-    Executes a prepared statement via the provided database connection to fetch data as entity collection
- +/
-EntityCollection!TEntity via(TEntity, DatabaseDriver)(
-    PreparedCollection!TEntity preparedCollection, DatabaseDriver db)
-        if (isDatabaseDriver!DatabaseDriver && isEntityType!TEntity)
-{
-    preparedCollection._statement.execute();
-    return EntityCollection!TEntity(preparedCollection._statement);
 }
 
 /++
